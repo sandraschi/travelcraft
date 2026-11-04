@@ -1,0 +1,15 @@
+[package]
+name = "travelcraft-mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+travelcraft-core = { path = "../travelcraft-core" }
+travelcraft-baedeker = { path = "../travelcraft-baedeker" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+chrono.workspace = true

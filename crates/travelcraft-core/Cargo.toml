@@ -1,0 +1,17 @@
+[package]
+name = "travelcraft-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+travelcraft-baedeker = { path = "../travelcraft-baedeker" }
+databasecraft-store.workspace = true
+databasecraft-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+rusqlite.workspace = true
