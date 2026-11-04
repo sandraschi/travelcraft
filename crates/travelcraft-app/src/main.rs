@@ -46,6 +46,7 @@ pub struct TravelCraftApp {
     selected_country_code: String,
     selected_waypoint_id: Option<String>,
     selected_info_item_id: Option<String>,
+    tree_search_query: String,
     active_tab: ActiveViewTab,
     status_msg: String,
     optimized_route: Option<RouteOptimizationResult>,
@@ -117,6 +118,7 @@ impl TravelCraftApp {
             selected_country_code: "JP".to_string(),
             selected_waypoint_id: Some("jp_nihonbashi".to_string()),
             selected_info_item_id: None,
+            tree_search_query: String::new(),
             active_tab: ActiveViewTab::ChronoMap,
             status_msg: "Baedeker 2030 Chrono-Cartography Ready".to_string(),
             optimized_route: initial_plan,
@@ -208,12 +210,27 @@ impl TravelCraftApp {
             .ok();
     }
 
+    /// Center the chrono-cartographic map on specific WGS84 coordinates.
+    fn center_map_on(&mut self, lat: f64, lon: f64, zoom: f32) {
+        self.map_zoom = zoom;
+        let bbox = if self.selected_country_code == "AT" {
+            (46.6, 49.2, 9.5, 17.5)
+        } else {
+            (33.0, 38.5, 131.0, 141.5)
+        };
+        let rect = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(800.0, 440.0));
+        let base = project_coords(lat, lon, bbox, rect, egui::Vec2::ZERO, 1.0);
+        let center = rect.center();
+        self.map_pan = -(base - center) * zoom;
+        self.map_clat = lat;
+        self.map_clng = lon;
+    }
+
     /// Fly the chrono map to the selected waypoint (city-scale zoom).
     /// Clears cached-failure flags so retried tiles can load.
     fn focus_selected(&mut self) {
         if let Some(w) = self.current_waypoint() {
-            self.map_clng = w.lon;
-            self.map_clat = w.lat;
+            self.center_map_on(w.lat, w.lon, 3.0);
             self.map_z = 13;
             self.map_failed.clear();
             self.map_pending.clear();
@@ -727,7 +744,24 @@ impl eframe::App for TravelCraftApp {
                     );
                     ui.add_space(8.0);
 
+                    // SEARCH / FILTER INPUT
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new("🔍").size(14.0));
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.tree_search_query)
+                                .hint_text("Filter intel (schnitzel, onsen, beisl)...")
+                                .desired_width(220.0),
+                        );
+                        if !self.tree_search_query.is_empty() && ui.small_button("✖").clicked() {
+                            self.tree_search_query.clear();
+                        }
+                    });
+                    ui.add_space(6.0);
+
+                    let query = self.tree_search_query.trim().to_lowercase();
+
                     // SECTION 1: Chrono-Waypoints
+                    let is_search_active = !query.is_empty();
                     egui::CollapsingHeader::new(
                         egui::RichText::new("📍 Chrono-Waypoints & Path")
                             .size(15.0)
@@ -743,6 +777,14 @@ impl eframe::App for TravelCraftApp {
                                     .color(MIST),
                             );
                             for wp in &route.waypoints {
+                                if is_search_active
+                                    && !wp.name.to_lowercase().contains(&query)
+                                    && !wp.region.to_lowercase().contains(&query)
+                                    && !wp.historic_narrative.to_lowercase().contains(&query)
+                                    && !wp.culinary_specialty.iter().any(|c| c.to_lowercase().contains(&query))
+                                {
+                                    continue;
+                                }
                                 let is_wp_sel = self.selected_waypoint_id.as_deref() == Some(&wp.id);
                                 let wp_title = format!(
                                     "{} [{}] {}",
@@ -783,16 +825,40 @@ impl eframe::App for TravelCraftApp {
                             &self.selected_country_code,
                         );
                         for branch in &tree.branches {
-                            let branch_header = format!("{} {}", branch.icon, branch.title);
+                            let matching_items: Vec<&travelcraft_baedeker::InfoTopicItem> = branch
+                                .items
+                                .iter()
+                                .filter(|item| {
+                                    if query.is_empty() {
+                                        true
+                                    } else {
+                                        item.title.to_lowercase().contains(&query)
+                                            || item.subtitle.to_lowercase().contains(&query)
+                                            || item.body.to_lowercase().contains(&query)
+                                            || item.tags.iter().any(|t| t.to_lowercase().contains(&query))
+                                    }
+                                })
+                                .collect();
+
+                            if is_search_active && matching_items.is_empty() {
+                                continue;
+                            }
+
+                            let branch_header = if is_search_active {
+                                format!("{} {} ({})", branch.icon, branch.title, matching_items.len())
+                            } else {
+                                format!("{} {}", branch.icon, branch.title)
+                            };
+
                             egui::CollapsingHeader::new(
                                 egui::RichText::new(branch_header)
                                     .size(13.5)
                                     .strong()
                                     .color(TEAL),
                             )
-                            .default_open(true)
+                            .default_open(is_search_active || true)
                             .show(ui, |ui| {
-                                for item in &branch.items {
+                                for item in matching_items {
                                     let is_item_sel =
                                         self.selected_info_item_id.as_deref() == Some(&item.id);
                                     let item_title = format!(
@@ -839,7 +905,7 @@ impl eframe::App for TravelCraftApp {
                         &self.selected_country_code,
                     );
 
-                    // Map controls
+                    // Map controls & Quick Jumps
                     ui.horizontal(|ui| {
                         if ui.button("Zoom -").clicked() {
                             self.map_zoom = (self.map_zoom / 1.25).clamp(0.5, 12.0);
@@ -857,12 +923,29 @@ impl eframe::App for TravelCraftApp {
                                 .color(GOLD),
                         );
                         ui.separator();
-                        let ed_label = if self.selected_country_code == "AT" {
-                            "AustriaCraft: Vienna Basin, Danube Corridor & Alps"
+                        if self.selected_country_code == "AT" {
+                            if ui.button("📍 Vienna Basin").clicked() {
+                                self.center_map_on(48.2085, 16.3738, 4.0);
+                            }
+                            if ui.button("🏔️ Salzkammergut").clicked() {
+                                self.center_map_on(47.5622, 13.6493, 3.5);
+                            }
+                            if ui.button("🇦🇹 Full Country").clicked() {
+                                self.map_zoom = 1.0;
+                                self.map_pan = egui::Vec2::ZERO;
+                            }
                         } else {
-                            "JapanCraft: Tokaido Historical Highway & Kansai"
-                        };
-                        ui.label(egui::RichText::new(ed_label).size(13.5).color(MIST));
+                            if ui.button("📍 Tokyo & Edo").clicked() {
+                                self.center_map_on(35.6840, 139.7745, 3.5);
+                            }
+                            if ui.button("⛩️ Kyoto & Kansai").clicked() {
+                                self.center_map_on(34.9671, 135.7727, 3.5);
+                            }
+                            if ui.button("🇯🇵 Full Country").clicked() {
+                                self.map_zoom = 1.0;
+                                self.map_pan = egui::Vec2::ZERO;
+                            }
+                        }
                     });
 
                     ui.add_space(4.0);
@@ -994,7 +1077,26 @@ impl eframe::App for TravelCraftApp {
                         }
                     }
 
-                    // 3. Vector Landmass Coastlines / National Borders
+                    // 3. Vector Landmass: Regional Hulls Fill, Coastlines & Major Cities
+                    let hulls = if self.selected_country_code == "AT" {
+                        AUSTRIA_LAND_HULLS
+                    } else {
+                        JAPAN_LAND_HULLS
+                    };
+                    for hull in hulls {
+                        let hull_pts: Vec<egui::Pos2> = hull
+                            .iter()
+                            .map(|&(lat, lon)| {
+                                project_coords(lat, lon, bbox, rect, self.map_pan, self.map_zoom)
+                            })
+                            .collect();
+                        painter.add(egui::Shape::convex_polygon(
+                            hull_pts,
+                            egui::Color32::from_rgb(16, 26, 42),
+                            egui::Stroke::NONE,
+                        ));
+                    }
+
                     if self.selected_country_code == "AT" {
                         // Austria national border
                         let border_pts: Vec<egui::Pos2> = AUSTRIA_BORDER
@@ -1072,6 +1174,30 @@ impl eframe::App for TravelCraftApp {
                             painter.line_segment(
                                 [w[0], w[1]],
                                 egui::Stroke::new(2.5, egui::Color32::from_rgb(70, 190, 240)),
+                            );
+                        }
+                    }
+
+                    // Major Cities for cartographic orientation
+                    let cities = if self.selected_country_code == "AT" {
+                        AUSTRIA_CITIES
+                    } else {
+                        JAPAN_CITIES
+                    };
+                    for &(name, clat, clon) in cities {
+                        let cp = project_coords(clat, clon, bbox, rect, self.map_pan, self.map_zoom);
+                        if rect.contains(cp) {
+                            painter.rect_filled(
+                                egui::Rect::from_center_size(cp, egui::vec2(5.0, 5.0)),
+                                1.0,
+                                egui::Color32::from_rgb(190, 215, 245),
+                            );
+                            painter.text(
+                                cp + egui::vec2(6.0, -7.0),
+                                egui::Align2::LEFT_BOTTOM,
+                                name,
+                                egui::FontId::proportional(11.0),
+                                egui::Color32::from_rgb(160, 190, 220),
                             );
                         }
                     }
@@ -1304,7 +1430,45 @@ impl eframe::App for TravelCraftApp {
                         );
                     }
 
-                    // 8. Projection Legend badge (Top-Right)
+                    // 8. Dynamic Cartographic Scale Bar (Bottom-Right)
+                    let mid_lat: f64 = (bbox.0 + bbox.1) * 0.5;
+                    let km_per_deg_lon = 111.32 * mid_lat.to_radians().cos();
+                    let total_km = (bbox.3 - bbox.2) * km_per_deg_lon;
+                    let map_w = (bbox.3 - bbox.2) * mid_lat.to_radians().cos();
+                    let map_h = bbox.1 - bbox.0;
+                    let aspect = (map_w / map_h) as f32;
+                    let rect_aspect = rect.width() / rect.height();
+                    let draw_w = if rect_aspect > aspect {
+                        rect.height() * aspect
+                    } else {
+                        rect.width()
+                    };
+                    let px_per_km = (draw_w * self.map_zoom) / (total_km as f32);
+                    let scale_km = if px_per_km > 3.0 {
+                        25.0
+                    } else if px_per_km > 1.2 {
+                        50.0
+                    } else if px_per_km > 0.5 {
+                        100.0
+                    } else {
+                        250.0
+                    };
+                    let bar_len_px = (scale_km * px_per_km).clamp(35.0, 140.0);
+                    let bar_pos_y = rect.max.y - 18.0;
+                    let bar_end_x = rect.max.x - 18.0;
+                    let bar_start_x = bar_end_x - bar_len_px;
+                    let scale_bg = egui::Rect::from_min_max(
+                        egui::pos2(bar_start_x - 8.0, bar_pos_y - 16.0),
+                        egui::pos2(bar_end_x + 8.0, bar_pos_y + 8.0),
+                    );
+                    painter.rect_filled(scale_bg, 4.0, egui::Color32::from_rgba_unmultiplied(6, 12, 24, 210));
+                    painter.rect_stroke(scale_bg, 4.0, egui::Stroke::new(1.0, LINE_BRIGHT), egui::StrokeKind::Inside);
+                    painter.line_segment([egui::pos2(bar_start_x, bar_pos_y), egui::pos2(bar_end_x, bar_pos_y)], egui::Stroke::new(2.0, egui::Color32::WHITE));
+                    painter.line_segment([egui::pos2(bar_start_x, bar_pos_y - 4.0), egui::pos2(bar_start_x, bar_pos_y + 4.0)], egui::Stroke::new(2.0, egui::Color32::WHITE));
+                    painter.line_segment([egui::pos2(bar_end_x, bar_pos_y - 4.0), egui::pos2(bar_end_x, bar_pos_y + 4.0)], egui::Stroke::new(2.0, egui::Color32::WHITE));
+                    painter.text(egui::pos2((bar_start_x + bar_end_x) * 0.5, bar_pos_y - 8.0), egui::Align2::CENTER_CENTER, format!("{:.0} km", scale_km), egui::FontId::proportional(11.0), GOLD);
+
+                    // 9. Projection Legend badge (Top-Right)
                     let legend_text = "🗺️ WGS84 Mercator Vector Cartography | Sovereign Baedeker 2030";
                     let l_font = egui::FontId::proportional(11.5);
                     let l_galley = painter.layout_no_wrap(
@@ -1386,10 +1550,11 @@ impl eframe::App for TravelCraftApp {
                                                 .size(14.0)
                                                 .color(ROSE),
                                             );
-                                            if ui.button("Show on Chrono-Map").clicked() {
+                                            if ui.button("📍 Show on Chrono-Map").clicked() {
+                                                self.center_map_on(lat, lon, 3.8);
                                                 self.active_tab = ActiveViewTab::ChronoMap;
                                                 self.status_msg =
-                                                    format!("Viewing {} on map", item.title);
+                                                    format!("Viewing {} on map (GPS: {:.4}, {:.4})", item.title, lat, lon);
                                             }
                                         });
                                     }
@@ -1431,10 +1596,11 @@ impl eframe::App for TravelCraftApp {
                                     .color(MIST),
                                 );
                                 ui.horizontal(|ui| {
-                                    if ui.button("Show on Chrono-Map").clicked() {
+                                    if ui.button("📍 Show on Chrono-Map").clicked() {
+                                        self.center_map_on(wp.lat, wp.lon, 3.2);
                                         self.active_tab = ActiveViewTab::ChronoMap;
                                         self.status_msg =
-                                            format!("Viewing {} on map", wp.name);
+                                            format!("Viewing {} on map (GPS: {:.4}, {:.4})", wp.name, wp.lat, wp.lon);
                                     }
                                 });
                                 ui.separator();
@@ -1844,6 +2010,52 @@ const AUSTRIA_ALPINE_SPINE: &[(f64, f64)] = &[
     (47.60, 14.45), // Gesaeuse
     (47.70, 15.30), // Hochschwab
     (47.76, 15.80), // Rax / Schneeberg
+];
+
+/// Major Austrian cities for cartographic orientation.
+const AUSTRIA_CITIES: &[(&str, f64, f64)] = &[
+    ("Wien", 48.2085, 16.3738),
+    ("Salzburg", 47.8095, 13.0550),
+    ("Linz", 48.3069, 14.2858),
+    ("Graz", 47.0707, 15.4395),
+    ("Innsbruck", 47.2692, 11.4041),
+    ("Bregenz", 47.5031, 9.7471),
+    ("Klagenfurt", 46.6247, 14.3053),
+];
+
+/// Major Japanese cities for cartographic orientation.
+const JAPAN_CITIES: &[(&str, f64, f64)] = &[
+    ("Tokyo", 35.6840, 139.7745),
+    ("Kyoto", 35.0116, 135.7681),
+    ("Osaka", 34.6937, 135.5023),
+    ("Nagoya", 35.1815, 136.9066),
+    ("Hiroshima", 34.3853, 132.4553),
+    ("Kanazawa", 36.5613, 136.6562),
+    ("Sendai", 38.2682, 140.8694),
+];
+
+/// Convex sub-polygons for Austrian landmass background fill.
+const AUSTRIA_LAND_HULLS: &[&[(f64, f64)]] = &[
+    // West (Vorarlberg & Tyrol)
+    &[(47.5, 9.7), (47.1, 10.2), (47.0, 11.5), (47.6, 12.2), (47.5, 11.3), (47.4, 10.7)],
+    // Central (Salzburg & Upper Austria)
+    &[(47.6, 12.2), (47.0, 12.1), (47.1, 12.8), (47.48, 13.61), (47.8, 13.0), (48.3, 14.28), (48.5, 13.5)],
+    // East (Lower Austria & Vienna Basin)
+    &[(48.5, 13.5), (48.3, 14.28), (48.8, 15.3), (48.8, 16.4), (48.2, 17.0), (47.7, 16.8), (47.76, 15.80)],
+    // South (Carinthia & Styria)
+    &[(47.1, 12.8), (46.6, 12.9), (46.5, 14.5), (46.8, 16.0), (47.2, 16.5), (47.07, 15.44), (47.48, 13.61)],
+];
+
+/// Convex sub-polygons for Honshu landmass background fill.
+const JAPAN_LAND_HULLS: &[&[(f64, f64)]] = &[
+    // Kanto & Chubu
+    &[(35.0, 139.8), (35.7, 140.8), (36.8, 139.6), (36.8, 137.1), (35.0, 136.9), (34.6, 138.2), (35.0, 138.5)],
+    // Kansai Basin
+    &[(35.0, 136.9), (35.5, 135.5), (34.7, 135.2), (34.6, 135.4), (33.4, 135.8), (34.5, 136.8)],
+    // Chugoku & Sanyo
+    &[(35.5, 135.5), (35.5, 133.0), (34.0, 130.9), (34.3, 132.4), (34.6, 133.9), (34.7, 135.2)],
+    // Tohoku
+    &[(36.8, 139.6), (37.0, 141.0), (40.0, 140.0), (37.9, 139.0), (36.8, 137.1)],
 ];
 
 /// Exact WGS84 Mercator projection from (lat, lon) to screen pos2.

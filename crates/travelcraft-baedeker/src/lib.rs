@@ -712,6 +712,41 @@ impl BaedekerCatalog {
                             ],
                             Some((48.2536, 16.3052)),
                         ),
+                        topic(
+                            "at_item_wiener_schnitzel",
+                            "Wiener Schnitzel: The Sacred Veal & Panier Law",
+                            "Austrian food codex, Butterschmalz soufflé, Erdäpfelsalat rules",
+                            &["schnitzel", "veal", "codex", "tradition", "butterschmalz"],
+                            "Nach dem Österreichischen Lebensmittelbuch darf die Bezeichnung 'Wiener Schnitzel' ausschließlich für Kalbfleisch verwendet werden (Schwein muss als 'Schnitzel nach Wiener Art' deklariert sein). Die Zubereitung ist ein strenges Handwerk:\n\
+                            • Fleisch: Aus der Kalbsnuss oder der Kaiserteil-Schale, behutsam auf 3–4 mm plattiert (niemals mit scharfem Zackenklopfer zerfasert!).\n\
+                            • Panier (Wiener Panier): Mehl (glatt), geschlagenes Ei (mit einem Esslöffel Obers oder Wasser verquirlt), feine Bäcker-Semmelbrösel (niemals industrielles Paniermehl!). Die Panier darf nicht fest angedrückt werden, damit sie beim Backen 'souffliert' — d.h. wellenförmig und luftig vom Fleisch abhebt.\n\
+                            • Backen: Schwimmend in reichlich geklärtem Schweineschmalz oder Butterschmalz bei 160–180°C unter ständigem Schwenken (Welligkeit).\n\
+                            • Beilage: Wiener Erdäpfelsalat (mit Rindsuppe, Zwiebeln, Essig und Öl warm mariniert — Mayonnaise ist im Wiener Beisl verpönt!), Preiselbeerkompott und eine frische Zitronenspalte.",
+                            &[
+                                "Look for soufflierte (wavy, detached) golden crust.",
+                                "Order with warm Austrian potato salad (Erdäpfelsalat), never french fries.",
+                                "Squeeze lemon directly on the crust before the first bite."
+                            ],
+                            Some((48.2085, 16.3738)),
+                        ),
+                        topic(
+                            "at_item_sachertorte_rivalry",
+                            "The Great Sachertorte Feud: Hotel Sacher vs Demel",
+                            "The 25-year courtroom battle (1938–1965) between Hotel Sacher and K.u.K. Hofzuckerbäckerei Demel",
+                            &["sachertorte", "demel", "sacher", "rivalry", "history"],
+                            "Der legendäre 'Wiener Sachertortenstreit' beschäftigte über ein Vierteljahrhundert lang die Gerichte:\n\
+                            1832 kreierte der 16-jährige Kochlehrling Franz Sacher am Hofe des Fürsten Metternich eine Schokoladentorte mit Marillenmarmelade. Sein Sohn Eduard Sacher vollendete die Rezeptur während seiner Ausbildung bei der K.u.K. Hofzuckerbäckerei Demel am Kohlmarkt. Nach der Pleite des Hotel Sacher in den 1930er Jahren verkaufte Eduards Sohn das Originalrezept an Demel.\n\
+                            Es folgte ein erbitterter Rechtsstreit um die Namensrechte:\n\
+                            • Hotel Sacher: 'Original Sacher-Torte' — zeichnet sich durch zwei Lagen Marillenmarmelade (eine in der Mitte durchgeschnitten, eine unter der Glasur) und ein rundes Schokoladensiegel aus.\n\
+                            • Hofzuckerbäckerei Demel: 'Eduard-Sacher-Torte' (Demel's Sachertorte) — besitzt nur eine einzige Marillenschicht direkt unter der dunklen Schokoglasur und ein dreieckiges Siegel.\n\
+                            Beide schmecken hervorragend, sollten jedoch traditionell stets mit einer großzügigen Portion ungesüßtem Schlagobers (Schlagsahne) serviert werden.",
+                            &[
+                                "Demel's torte has one jam layer directly under glaze; Hotel Sacher's is sliced through the middle with two layers.",
+                                "Always eat Sachertorte with unsweetened Schlagobers (whipped cream) to balance the chocolate density.",
+                                "Demel on Kohlmarkt lets you watch master pastry chefs through glass walls in the salon."
+                            ],
+                            Some((48.2086, 16.3670)),
+                        ),
                     ],
                 },
                 InfoBranch {
@@ -882,6 +917,49 @@ impl BaedekerCatalog {
                                 "ÖBB Railjet connects Wien Hbf to Melk in 50 minutes.",
                                 "Rent a bike in Melk and cycle the 39km Danube trail to Krems.",
                                 "Hallstatt salt mine requires booking a funicular + mine entry slot."
+                            ],
+                            Some((47.5622, 13.6493)),
+                        ),
+                    ],
+                },
+                InfoBranch {
+                    id: "at_branch_alpine".to_string(),
+                    title: "Alpine Culture, Hut Etiquette & Mountain Safety".to_string(),
+                    icon: "⛰️".to_string(),
+                    items: vec![
+                        topic(
+                            "at_item_huettenordnung",
+                            "Alpine Hut Etiquette (Hüttenordnung & Bergwacht)",
+                            "DAV/ÖAV rules, Hüttenschlafsack, Hüttenruhe 22:00, Emergency 140",
+                            &["alps", "hiking", "safety", "huette", "oeav"],
+                            "Auf den über 500 Alpenvereinshütten (ÖAV & DAV) in den österreichischen Alpen gelten feste Regeln der Bergkameradschaft:\n\
+                            • Hüttenschlafsack-Pflicht: Auf Bettenlagern und Matratzenlagern ist aus hygienischen Gründen ein eigener dünner Seiden- oder Baumwollschlafsack zwingend vorgeschrieben (Hüttendecken sind vorhanden).\n\
+                            • Bergschuhe ausziehen: Bergschuhe gehören sofort im Eingangsbereich in den Trockenraum (Schuhregal); in der Hütte trägt man Hüttenschuhe oder Pantoletten.\n\
+                            • Hüttenruhe: Punkt 22:00 Uhr herrscht absolute Hüttenruhe. Bergsteiger brechen oft vor Sonnenaufgang (05:00 Uhr) auf.\n\
+                            • Müll mitnehmen: Auf Berghütten gibt es keine städtische Müllabfuhr — jeder Bergsteiger nimmt seinen gesamten Müll restlos wieder ins Tal.\n\
+                            • Bargeld: Viele alpine Schutzhütten haben kein Mobilfunknetz oder Kartenterminal — immer ausreichend Bargeld mitführen!\n\
+                            • Alpine Notrufnummer: 140 (Österreichischer Bergrettungsdienst), 112 (Euro-Notruf).",
+                            &[
+                                "Pack a silk sleeping bag liner (Hüttenschlafsack).",
+                                "Alpine emergency number is 140.",
+                                "Take every scrap of personal trash back down into the valley.",
+                                "Carry cash for all food and overnight hut fees."
+                            ],
+                            Some((47.0742, 12.6947)),
+                        ),
+                        topic(
+                            "at_item_salzkammergut_lakes",
+                            "Salzkammergut Lakes & Dachstein Glacier",
+                            "Hallstättersee, Lake Wolfgang, Traunsee & Holzknechtnocken",
+                            &["lakes", "salzkammergut", "dachstein", "hallstatt"],
+                            "Das Salzkammergut umfasst 76 glasklare Alpenseen, eingebettet zwischen dem Kalksteinmassiv des Dachsteins und sanften Voralpenhügeln:\n\
+                            • Hallstätter See: Fjordartiges Gewässer mit Weltkulturerbe-Blick. Mit der Holzplätte (traditionelles Flachboot) über das spiegelnde Wasser gleiten.\n\
+                            • Wolfgangsee & Schafbergbahn: Die steilste Zahnrad-Dampfbahn Österreichs (seit 1893) erklimmt den 1.783m hohen Schafberg mit 360°-Blick über sieben Seen.\n\
+                            • Holzknechtnocken: Traditionelle Mahlzeit der Holzarbeiter aus Mehl, Butterschmalz und Wasser, wahlweise süß mit Apfelmus oder herzhaft serviert.",
+                            &[
+                                "Ride the historic Schafbergbahn steam cog railway in St. Wolfgang.",
+                                "Water temperature in mountain lakes peaks around 20-22°C in late July.",
+                                "Take the Dachstein Krippenstein cable car to the Giant Ice Cave (Rieseneishöhle)."
                             ],
                             Some((47.5622, 13.6493)),
                         ),
@@ -1096,6 +1174,58 @@ impl BaedekerCatalog {
                             ],
                             None,
                         ),
+                        topic(
+                            "jp_item_onsen_ryokan_protocol",
+                            "Onsen & Ryokan Protocol: The Sacred Bathing Ritual",
+                            "Total nudity, pre-wash washing stool, tattoo rules, and yukata folding",
+                            &["onsen", "ryokan", "bathing", "etiquette", "yukata"],
+                            "Das traditionelle japanische Onsen-Bad ist eine uralte Reinigungszeremonie in geothermalem Thermalwasser:\n\
+                            1. Auskleiden: Vor dem Betreten des Nassbereichs zieht man sich im Umkleideraum komplett nackt aus. Badekleidung ist im Onsen streng verboten!\n\
+                            2. Waschen VOR dem Becken: Man setzt sich auf einen kleinen Plastikhocker vor den Duscharmaturen und wäscht sich gründlich von Kopf bis Fuß mit Seife und Shampoo, bevor man auch nur einen Zeh ins Thermalbecken taucht.\n\
+                            3. Das kleine Handtuch (Tenugui): Darf niemals das heiße Onsen-Wasser berühren. Man faltet es auf dem Kopf oder legt es an den Beckenrand.\n\
+                            4. Tattoos: Viele traditionelle Onsen verbieten Tätowierungen wegen historischer Yakuza-Assoziationen. Kleinere Tattoos können mit wasserfesten hautfarbenen Pflastern (Seal) überklebt werden; alternativ bucht man ein Ryokan mit privatem Bad (Kashikiri-Buro).\n\
+                            5. Yukata-Kimonos: Im Ryokan trägt man Yukata. Goldene Lebensregel: Die LINKE Seite wird ÜBER die rechte Seite geschlagen! Rechts-über-links ist im Shinto/Buddhismus ausschließlich Leichen bei der Bestattung vorbehalten.",
+                            &[
+                                "Always fold yukata left side over right side (left-over-right = life; right-over-left = burial).",
+                                "Never submerge your head or small hand towel in onsen water.",
+                                "Wash and rinse completely on the stool before entering the communal pool.",
+                                "Book a ryokan with 'kashikiri' (private rentable onsen) if heavily tattooed."
+                            ],
+                            Some((35.1917, 139.0253)),
+                        ),
+                        topic(
+                            "jp_item_kyoto_walking_trails",
+                            "Kyoto Chrono-Walks: Philosopher's Path & Arashiyama",
+                            "Tetsugaku no Michi stone canal path, bamboo grove, and dawn crowd avoidance",
+                            &["kyoto", "walks", "philosophers-path", "arashiyama", "temples"],
+                            "Die erhabensten historischen Spaziergänge in Kyoto:\n\
+                            • Philosopher's Path (Tetsugaku no Michi): Ein 2 km langer, von Steinplatten gesäumter Fußweg entlang eines von Kirschbäumen beschatteten Kanals am Fuße der östlichen Higashiyama-Berge. Benannt nach Philosoph Nishida Kitaro, der hier täglich zur Meditation wandelte. Verbindet den Silbernen Pavillon (Ginkaku-ji) mit dem Nanzen-ji.\n\
+                            • Arashiyama Bambuswald: Ein märchenhafter Hohlweg durch meterhohe, im Wind knarrende Bambusstangen. Tipp: Unbedingt vor 07:30 Uhr morgens besuchen, bevor die Ausflugsbusse eintreffen.\n\
+                            • Fushimi Inari Dämmerungspfad: Den 4 km langen Rundweg durch die 10.000 Torii-Tore nach 17:30 Uhr im Abendlicht besteigen — die Scharen schwinden, Laternen glimmen, und Steinfüchse wachen im Schatten.",
+                            &[
+                                "Walk Philosopher's Path from Ginkaku-ji south toward Nanzen-ji in late afternoon.",
+                                "Arashiyama bamboo grove is completely quiet only before 07:30.",
+                                "Fushimi Inari shrine never closes — climb at twilight or night with flashlights."
+                            ],
+                            Some((35.0272, 135.7953)),
+                        ),
+                        topic(
+                            "jp_item_matcha_tea_ceremony",
+                            "Matcha & The Way of Tea (Chado / Sado)",
+                            "Wabi-sabi aesthetics, Sen no Rikyu, and chawan bowl rotation etiquette",
+                            &["tea", "matcha", "chado", "wabi-sabi", "zen"],
+                            "Die japanische Teezeremonie (Chado) wurde im 16. Jahrhundert von Teemeister Sen no Rikyu in Kyoto vollendet. Sie verkörpert vier Zen-Ideale: Harmonie (Wa), Respekt (Kei), Reinheit (Sei) und Stille (Jaku):\n\
+                            • Die Schale (Chawan): Die wertvollste, kunstvoll bemalte Seite der Keramikschale (die 'Schauseite') zeigt bei der Übergabe zum Gast.\n\
+                            • Drehung der Schale: Man nimmt die Chawan mit der rechten Hand, setzt sie auf die linke Handfläche und dreht sie zweimal im Uhrzeigersinn um etwa 90°, damit man mit den Lippen nicht direkt auf die Schauseite trinkt (ein Zeichen der Demut).\n\
+                            • Trinken: Man trinkt den schaumig geschlagenen Koicha oder Usucha in drei bis vier Schlucken. Der letzte Schluck wird hörbar geschlürft, um zu signalisieren, dass man den Tee genossen hat.\n\
+                            • Rand abwischen: Nach dem Trinken wischt man die Trinkstelle mit Daumen und Zeigefinger der rechten Hand sanft ab und reinigt die Finger am mitgebrachten Kaishi-Papier.",
+                            &[
+                                "Eat the sweet wagashi confection BEFORE drinking the matcha to contrast the bitterness.",
+                                "Turn the tea bowl clockwise twice before sipping.",
+                                "Audibly slurp the final sip to indicate to the host that you have finished."
+                            ],
+                            Some((35.0088, 135.7725)),
+                        ),
                     ],
                 },
                 InfoBranch {
@@ -1300,6 +1430,8 @@ mod tests {
         assert!(ids.contains(&"at_item_traditional_beisln"));
         assert!(ids.contains(&"at_item_wuerstelstand"));
         assert!(ids.contains(&"at_item_broetchen"));
+        assert!(ids.contains(&"at_item_wiener_schnitzel"));
+        assert!(ids.contains(&"at_item_sachertorte_rivalry"));
 
         // Check specific intel content
         let orlik_beisl = resto_branch
@@ -1319,6 +1451,25 @@ mod tests {
         assert!(bitzinger.body.contains("Bitzinger"));
         assert!(bitzinger.body.contains("Alles Wurscht"));
         assert!(bitzinger.body.contains("Leberkas-Pepi"));
+
+        let schnitzel = resto_branch
+            .items
+            .iter()
+            .find(|i| i.id == "at_item_wiener_schnitzel")
+            .unwrap();
+        assert!(schnitzel.body.contains("Kalbfleisch"));
+        assert!(schnitzel.body.contains("souffliert"));
+
+        // Verify Alpine branch
+        let alpine_branch = tree
+            .branches
+            .iter()
+            .find(|b| b.id == "at_branch_alpine")
+            .expect("Must have alpine branch");
+        assert!(alpine_branch
+            .items
+            .iter()
+            .any(|i| i.id == "at_item_huettenordnung"));
     }
 
     #[test]
@@ -1348,6 +1499,14 @@ mod tests {
             .expect("Must have culture branch");
         assert!(culture.items.iter().any(|i| i.id == "jp_item_temizuya_bowing"));
         assert!(culture.items.iter().any(|i| i.id == "jp_item_genkan_shoes"));
+        assert!(culture
+            .items
+            .iter()
+            .any(|i| i.id == "jp_item_onsen_ryokan_protocol"));
+        assert!(culture
+            .items
+            .iter()
+            .any(|i| i.id == "jp_item_kyoto_walking_trails"));
     }
 
     #[test]
