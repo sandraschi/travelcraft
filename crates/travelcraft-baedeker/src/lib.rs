@@ -36,6 +36,36 @@ Transit: Wiener Linien U1/U3 Stephansplatz, U4 Friedensbruecke, trams D/1/71. \
 Beisl rule: no photo menus at door - two alleys further locals eat better/cheaper. \
 Avoid taxi short rides; day ticket EUR 8. Safety: harmless fauna except cows on alm + hornviper.";
 
+/// A single topic item within a Baedeker Knowledge Tree.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InfoTopicItem {
+    pub id: String,
+    pub title: String,
+    pub subtitle: String,
+    pub tags: Vec<String>,
+    pub body: String,
+    pub practical_tips: Vec<String>,
+    pub lat: Option<f64>,
+    pub lon: Option<f64>,
+}
+
+/// A categorized branch inside a country's Baedeker Knowledge Tree.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InfoBranch {
+    pub id: String,
+    pub title: String,
+    pub icon: String,
+    pub items: Vec<InfoTopicItem>,
+}
+
+/// A comprehensive hierarchical knowledge tree for a country edition.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KnowledgeTree {
+    pub country_code: String,
+    pub title: String,
+    pub branches: Vec<InfoBranch>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChronoWaypoint {
     pub id: String,
@@ -164,6 +194,27 @@ fn wp(
         sensory_profile: s,
         culinary_specialty: food.iter().map(|x| x.to_string()).collect(),
         visitor_info: visitor.to_string(),
+    }
+}
+
+fn topic(
+    id: &str,
+    title: &str,
+    subtitle: &str,
+    tags: &[&str],
+    body: &str,
+    tips: &[&str],
+    coords: Option<(f64, f64)>,
+) -> InfoTopicItem {
+    InfoTopicItem {
+        id: id.to_string(),
+        title: title.to_string(),
+        subtitle: subtitle.to_string(),
+        tags: tags.iter().map(|s| s.to_string()).collect(),
+        body: body.to_string(),
+        practical_tips: tips.iter().map(|s| s.to_string()).collect(),
+        lat: coords.map(|(lat, _)| lat),
+        lon: coords.map(|(_, lon)| lon),
     }
 }
 
@@ -536,6 +587,597 @@ impl BaedekerCatalog {
             practical_tip: practical,
         }
     }
+
+    /// Full Austrian Knowledge Tree (extensive Vienna gastronomy, culture, imperial, transit).
+    pub fn get_austria_knowledge_tree() -> KnowledgeTree {
+        KnowledgeTree {
+            country_code: "AT".to_string(),
+            title: "AustriaCraft: Sovereign Baedeker Knowledge Tree".to_string(),
+            branches: vec![
+                InfoBranch {
+                    id: "at_branch_restaurants".to_string(),
+                    title: "Vienna Restaurant & Gastronomy Guide (Extensive)".to_string(),
+                    icon: "🍽️".to_string(),
+                    items: vec![
+                        topic(
+                            "at_item_beisl_rules",
+                            "The Golden Vienna Beisl Rules & Culture",
+                            "Etiquette, ordering terminology, tipping, and the 2-alleys rule",
+                            &["etiquette", "beisl", "beer", "spritzer", "tipping"],
+                            "Keine Fotokarten vor der Tür — zwei Gassen weiter essen Einheimische besser und günstiger. Ein echtes Wiener Beisl zeichnet sich durch schlichte Holztäfelung, Schanktisch, traditionelle Wiener Hausmannskost und den Stammgast-Tisch (Stammtisch) aus. Niemals an einen freien Tisch mit Stammtisch-Schild setzen. Bier-Einheiten: Ein Pfiff (0.2L, traditionell zu Trzesniewski-Brötchen), ein Seidel (0.3L), ein Krügerl (0.5L). Beim Spritzer unterscheidet man: Weißer Spritzer (1/2 Grüner Veltliner, 1/2 Sodawasser), 'Süßer Spritzer' (mit Zitronenlimonade oder Almdudler), 'Saurer Spritzer' (mit saurem Mineralwasser). Trinkgeld (Tip): 10% ist der Höflichkeitsstandard; man rundet direkt beim Kellner (Herr Ober) auf und nennt den Gesamtbetrag ('24 Euro bitte' oder 'Stimmt so').",
+                            &[
+                                "Never sit at a table marked 'Stammtisch' unless invited.",
+                                "Order 'Ein Seidel' (0.3L) or 'Ein Krügerl' (0.5L) — avoid saying just 'ein Bier'.",
+                                "Tip ~10% by naming the rounded sum to the waiter directly.",
+                                "Skip any place displaying photo menus or tourist boards outside."
+                            ],
+                            None,
+                        ),
+                        topic(
+                            "at_item_falstaff_michelin",
+                            "Falstaff 2026 & Michelin Stars (Vienna Haute Cuisine)",
+                            "Steirereck (3*), Amador (3*), Filippou (2*), Mraz & Sohn (2*), Silvio Nickol, Tian, Pramerl & the Wolf",
+                            &["michelin", "falstaff", "fine-dining", "haute-cuisine"],
+                            "Wien ist eine europäische Spitzenmetropole der Hochgastronomie (Guide MICHELIN Austria 2026 & Falstaff Restaurantguide 2026):\n\
+                            • Steirereck im Stadtpark (3* Michelin, 99 Falstaff-Punkte, Chef Heinz Reitbauer): Weltklasse der alpinen Produktforschung, legendärer Brotwagen mit 25 Sorten, im Bienenwachs gegarter Saibling.\n\
+                            • Restaurant Amador (3* Michelin, 98 Falstaff, Juan Amador): In einem gewölbten Ziegelkeller in Grinzing, meisterhafte französisch-spanische Avantgarde.\n\
+                            • Konstantin Filippou (2* Michelin, Dominikanerbastei): Griechisch-österreichischer Purismus mit Meeresfokus (z.B. Langustine mit Schnecke und Knochenmark).\n\
+                            • Mraz & Sohn (2* Michelin, Wallensteinstraße 59, 1200): Punk-Haute-Cuisine ohne steife Attitüde, explosives Überraschungsmenü.\n\
+                            • Silvio Nickol Gourmet Restaurant (2* Michelin, Palais Coburg): Speisen über den 60.000 Flaschen fassenden historischen Weinkellern.\n\
+                            • TIAN Restaurant (1* Michelin, Himmelpfortgasse 23, 1010): Paul Ivićs radikale fleischlose Hochküche, eines der weltbesten vegetarischen Sternerestaurants.\n\
+                            • Pramerl & the Wolf (1* Michelin, Pramergasse 21, 1090 Servitenviertel): Intimes Neo-Bistro in einem ehemaligen Wiener Vorstadt-Beisl.",
+                            &[
+                                "Book Steirereck and Amador 2-3 months ahead.",
+                                "TIAN offers an entirely plant-based Michelin tasting experience.",
+                                "Pramerl & the Wolf is located in the charming Servitenviertel (1090)."
+                            ],
+                            Some((48.2036, 16.3808)),
+                        ),
+                        topic(
+                            "at_item_traditional_beisln",
+                            "Authentic Beisln & Gasthäuser (Where Locals Dine)",
+                            "Gasthaus Orlik, Gasthaus Pöschl, Woracziczky, Glacis Beisl, Servitenwirt, Plachutta Tafelspitz",
+                            &["beisl", "gasthaus", "schnitzel", "tafelspitz", "servitenviertel"],
+                            "Die wahren Schätze der Wiener Küche abseits der Touristenströme:\n\
+                            • Gasthaus Orlik (Spittelauer Platz 1, 1090 Wien): Das urige Servitenviertel-Wirtshaus. Legendäre Tageskarte (mittag.at), knuspriges Wiener Schnitzel, saftiger Zwiebelrostbraten und ehrliche Hausmannskost.\n\
+                            • Gasthaus Pöschl (Weihburggasse 17, 1010 Wien): Ein unprätentiöses Gasthaus am Franziskanerplatz. Mittags sitzen hier Stammgäste und Künstler; Schnitzel €18–22 von hoher Qualität.\n\
+                            • Gasthaus Woracziczky (Spengergasse 52, 1050 Margareten): Das Paradebeispiel des Wiener Neo-Beisls. Keine feste Karte, sondern täglich wechselnde Schiefertafel mit Marktfrische (Kalbsbries, Hirschgulasch, gefüllte Paprika). Unbedingt reservieren!\n\
+                            • Glacis Beisl (Breite Gasse 4, 1070 Wien): Versteckt hinter dem MuseumsQuartier unter Schatten spendenden Walnussbäumen. Legendäre Grammelknödel auf Veltlinerkraut.\n\
+                            • Plachutta Stammhaus Hietzing (Auhofstraße 1, 1130) & Wollzeile (1010): Die Pilgerstätte des Wiener Tafelspitz. Serviert im glänzenden Kupfertopf mit Rindsuppe, Markknochen auf getoastetem Schwarzbrot, Apfelkren und Schnittlauchsauce.\n\
+                            • Schachtelwirt (Judengasse 5, 1010): Hausmannskost modern interpretiert im kompostierbaren Karton — Schweinsbraten, Knödel und Krautfleckerl in Spitzenqualität to go.",
+                            &[
+                                "Woracziczky in the 5th requires reservation 3-5 days ahead.",
+                                "Plachutta is the benchmark for boiled beef (Tafelspitz) and bone marrow.",
+                                "Gasthaus Orlik has one of the best value lunch menus in the 9th district."
+                            ],
+                            Some((48.2268, 16.3556)),
+                        ),
+                        topic(
+                            "at_item_wuerstelstand",
+                            "Würstelstand & Kult-Imbisse (Late Night Institution)",
+                            "Bitzinger Albertina, Alles Wurscht, Zum scharfen René, Leberkas-Pepi, LEO",
+                            &["wuerstelstand", "kaesekrainer", "bosna", "leberkaese", "streetfood"],
+                            "Der Würstelstand ist Wiens nächtliches Wohnzimmer und sozialer Schmelztiegel, an dem Nachtschwärmer, Bauarbeiter und Staatsopern-Besucher im Frack Schulter an Schulter stehen:\n\
+                            • Bitzinger bei der Albertina (Augustinerstraße 1, 1010 Wien): Die Legende hinter der Oper. Berühmt für Käsekrainer ('Eitrige'), Bosna, serviert wahlweise mit Gösser Bier oder eisgekühltem Taittinger Champagner.\n\
+                            • Alles Wurscht (Börseplatz 1, 1010 Wien): Der Sieger im 'Der Standard' Test 2026. Handwerklich hergestellte Würste, fermentiertes Kimchi, Calamari fritti und die beste Gourmet-Bosna der Stadt.\n\
+                            • Zum scharfen René (Schwarzenbergplatz, 1010 Wien): Wiens Schärfe-Hotspot. Berühmt für hausgemischte Chili-Currysaucen bis zur Carolina Reaper Schärfestufe 10+.\n\
+                            • Würstelstand LEO (Döblinger Gürtel 2, 1190 Wien): Wiens ältester Würstelstand (seit 1928 an der U6 Nußdorfer Straße). Bekannt für die Riesenkäsekrainer 'Big Mama'.\n\
+                            • Leberkas-Pepi (Operngasse 12 & Hauptbahnhof): Wiens Leberkäse-Tempel mit 12 wechselnden Sorten von oberösterreichischen Bauernhöfen: Trüffel-Steinpilz, Röstzwiebel, Chili, Käse und traditioneller Pferdeleberkäse in der knusprigen Kaisersemmel.",
+                            &[
+                                "Classic order: 'A Eitrige mit an Schoafn und an 16er-Blech' (Käsekrainer with hot mustard and Ottakringer can).",
+                                "Leberkas-Pepi at Operngasse is ideal after an evening performance.",
+                                "Alles Wurscht offers artisan sourdough bread with its sausages."
+                            ],
+                            Some((48.2048, 16.3683)),
+                        ),
+                        topic(
+                            "at_item_broetchen",
+                            "Trzesniewski & Wiener Brötchen-Kultur",
+                            "Dorotheergasse Stammhaus (1902) & Tauber Brötchen Manufaktur",
+                            &["broetchen", "trzesniewski", "dorotheergasse", "snack"],
+                            "Trzesniewski (Dorotheergasse 1, 1010 Wien): Gegründet 1902 von Franciszek Trzesniewski. 'Die unaussprechlich guten Brötchen' sind Wiens traditionsreichstes Fingerfood. Über 25 verschiedene, streng geheim gehaltene Aufstriche auf saftigem Vollkorn-Schwarzbrot (Klassiker: Speck mit Ei, Ei mit Pfefferoni, Krebsensalat). Traditionell bestellt man 3-4 Brötchen und trinkt dazu einen 'Pfiff' Bier (0.2L im Spezialglas).\n\n\
+                            Tauber Brötchen Manufaktur: Gegründet 1987, mit 13 Standorten die moderne handwerkliche Alternative mit frischen Sandwich-Boxen und warmer Theke (Fleischlaibchen, warmer Leberkäse).",
+                            &[
+                                "Trzesniewski flagship in Dorotheergasse has no chairs — stand at the brass counter.",
+                                "Order 3-4 rolls per person with a Pfiff of beer.",
+                                "Try 'Speck mit Ei' (unchanged since 1902)."
+                            ],
+                            Some((48.2081, 16.3698)),
+                        ),
+                        topic(
+                            "at_item_tourist_traps",
+                            "Tourist Traps & Clever Alternatives (Graetzl Intel)",
+                            "Figlmüller vs Pöschl, Café Sacher vs Diglas/Demel",
+                            &["traps", "insider", "graetzl", "advice"],
+                            "Touristenfalle 1: Figlmüller (Wollzeile / Bäckerstraße). Das tellergroße Schnitzel ist historisch belegt, aber durch 2-stündige Schlangen und industrielle Massenabfertigung geprägt. Zudem ist das berühmte Figlmüller-Schnitzel vom Schwein (nicht Kalb!). Echte Alternative: Gasthaus Pöschl (Weihburggasse) oder Gasthaus Orlik (1090) für butterzartes Wiener Kalbsschnitzel ohne Hektik.\n\n\
+                            Touristenfalle 2: Café Sacher (Philharmonikerstraße). Die Schlange für die Sachertorte steht oft 100 Meter auf der Straße. Echte Alternative: Café Diglas (Wollzeile 10), K.u.K. Hofzuckerbäckerei Demel (Kohlmarkt) oder Konditorei Sluka (Rathausplatz) für handwerkliche Mehlspeisen in historischem Ambiente ohne Wartezeit.",
+                            &[
+                                "Real Wiener Schnitzel is strictly veal (Kalb); pork is labeled 'Wiener Art'.",
+                                "Never stand in line for Sacher; Viennese pastries elsewhere are fresher and less crowded."
+                            ],
+                            None,
+                        ),
+                        topic(
+                            "at_item_heurige",
+                            "Heurige & Historische Weinkeller",
+                            "Fuhrgassl-Huber (Neustift am Walde) & Zwölf-Apostelkeller (1327)",
+                            &["wine", "heuriger", "gemischter-satz", "cellar"],
+                            "Wiener Gemischter Satz DAC ist das weltweit einzigartige Phänomen eines Qualitätsweins aus Weinbergen innerhalb einer Millionenstadt:\n\
+                            • Fuhrgassl-Huber (Neustift am Walde 68, 1190 Wien): Malerischer Winzerhof mit Schanigarten am Hang der Weinberge. Selbstbedienungsbuffet mit hausgemachten Aufstrichen, Kümmelbraten, Surschnitzel und jungem Wein.\n\
+                            • Zwölf-Apostelkeller (Sonnenfelsgasse 3, 1010 Wien): Unterirdischer gotischer Keller aus dem 14. Jahrhundert, der sich über drei Stockwerke in die Tiefe erstreckt.",
+                            &[
+                                "Take Bus 35A from Spittelau out to Neustift am Walde for Heurige.",
+                                "Order Wiener Gemischter Satz DAC.",
+                                "At a traditional Heuriger, order drinks at the table and warm food at the buffet counter."
+                            ],
+                            Some((48.2536, 16.3052)),
+                        ),
+                    ],
+                },
+                InfoBranch {
+                    id: "at_branch_coffee".to_string(),
+                    title: "Viennese Kaffeehaus Culture & Etiquette".to_string(),
+                    icon: "☕".to_string(),
+                    items: vec![
+                        topic(
+                            "at_item_coffee_types",
+                            "Viennese Coffee Menu & Lexicon",
+                            "Melange, Verlängerter, Einspänner, Kleiner Brauner, Franziskaner",
+                            &["kaffeehaus", "coffee", "melange", "einspaenner"],
+                            "Bestellen wie ein Wiener:\n\
+                            • Wiener Melange: Halb milder Espresso, halb heiße Milch mit Milchschaumhaube.\n\
+                            • Verlängerter: Espresso mit der doppelten Menge heißem Wasser gestreckt (schwarz oder braun mit Milch).\n\
+                            • Einspänner: Doppelter Mokka im Henkelglas mit üppiger kalter Schlagobershaube (ursprünglich für Kutscher, hält Kaffee warm).\n\
+                            • Kleiner / Großer Schwarzer (Mokka): Reiner Espresso ohne Milch.\n\
+                            • Kleiner / Großer Brauner: Mokka serviert mit einem kleinen Kännchen Obers (Milch) zum Selbstgießen.\n\
+                            • Franziskaner: Melange getoppt mit Schlagobers statt Milchschaum.\n\
+                            • Fiaker: Großer Mokka im Glas mit einem Schuss Kirschwasser oder Rum.",
+                            &[
+                                "Never order just 'Kaffee' — specify the precise preparation.",
+                                "Every coffee is served on a silver tray with a glass of tap water and an inverted spoon on top.",
+                                "Drink a sip of water before the coffee to cleanse the palate."
+                            ],
+                            None,
+                        ),
+                        topic(
+                            "at_item_coffee_etiquette",
+                            "Kaffeehaus Etiquette & The Herr Ober",
+                            "Newspaper sticks, marble tables, and lingering without rush",
+                            &["etiquette", "culture", "herr-ober", "unesco"],
+                            "Wiener Kaffeehauskultur ist seit 2011 immaterielles UNESCO-Kulturerbe: 'Ein Ort, in dem Raum und Zeit verzehrt werden, aber nur der Kaffee auf der Rechnung steht.'\n\
+                            Der Oberkellner wird traditionell als 'Herr Ober' angesprochen. Nach dem Servieren des Kaffees kann man stundenlang ungestört an den Thonet-Holzstühlen und Marmortischen verweilen, in den Holzstangen-Zeitungen (Internationale Presse) blättern oder schreiben, ohne nachbestellen zu müssen.",
+                            &[
+                                "Address the waiter as 'Herr Ober'.",
+                                "Reading newspapers on wooden sticks is completely free.",
+                                "Take your time — rushing in a traditional Kaffeehaus is considered poor form."
+                            ],
+                            None,
+                        ),
+                        topic(
+                            "at_item_iconic_cafes",
+                            "Legendary Coffeehouses (Central, Hawelka, Sperl, Berg, Aida)",
+                            "Historic institutions across Vienna's districts",
+                            &["cafes", "hawelka", "sperl", "central", "aida"],
+                            "• Café Central (Herrengasse 14, 1010): Neorenaissance-Arkaden, einst Treffpunkt von Trozki, Freud und Altenberg.\n\
+                            • Café Hawelka (Dorotheergasse 6, 1010): Legendäre Künstler-Kaffeestube; berühmt für warme Buchteln mit Powidl, die erst ab 22:00 Uhr aus dem Ofen kommen.\n\
+                            • Café Sperl (Gumpendorfer Str. 11, 1060): 1880 eröffnet, original erhaltene Billardtische und Plüschlogen.\n\
+                            • Café Berg (Berggasse 8, 1090 Alsergrund): Intellektueller Treffpunkt unweit des Sigmund-Freud-Museums mit eigenem Hausbrand.\n\
+                            • Aida Konditoreien (34 Filialen, Stamm Wollzeile): Wiens älteste pinke Konditoreikette seit 1913; führte 1946 die erste Espressomaschine Österreichs ein.",
+                            &[
+                                "Arrive at Hawelka after 22:00 to catch fresh Buchteln.",
+                                "Café Sperl has pristine historic Carambole billiards tables.",
+                                "Café Central has queues at peak times; visit early morning before 10:00."
+                            ],
+                            Some((48.2104, 16.3653)),
+                        ),
+                    ],
+                },
+                InfoBranch {
+                    id: "at_branch_art".to_string(),
+                    title: "Museums & Masterpieces (Caravaggio, Klimt, Bruegel)".to_string(),
+                    icon: "🎨".to_string(),
+                    items: vec![
+                        topic(
+                            "at_item_khm_art",
+                            "Kunsthistorisches Museum: Caravaggio & Bruegel",
+                            "Rosenkranzmadonna, David with Goliath's Head, Tower of Babel",
+                            &["khm", "caravaggio", "bruegel", "renaissance"],
+                            "Das KHM beherbergt eine der weltbedeutendsten Gemäldegalerien der Renaissance und des Barock:\n\
+                            • Caravaggio-Saal (Saal X): 'Rosenkranzmadonna' (1606-07) — Caravaggios letztes großes neapolitanisches Altarbild im Chiaroscuro-Dunkel mit bettelnden nackten Füßen; und 'David mit dem Haupt des Goliath' (sein Selbstporträt als geköpfter Riese).\n\
+                            • Bruegel-Saal (Saal XII): Die weltgrößte Sammlung von Pieter Bruegel d. Ä., darunter 'Der Turm zu Babel' (1563), 'Die Jäger im Schnee' und 'Bauernhochzeit'.\n\
+                            • Kuppelcafé: Eines der prachtvollsten Museumscafés der Welt für eine Melange-Pause unter der monumentalen Neorenaissance-Kuppel.",
+                            &[
+                                "Caravaggio room: Staircase I, Saal X.",
+                                "Bruegel collection: Saal XII.",
+                                "Visit Thursday evenings for late opening until 21:00 with fewer crowds."
+                            ],
+                            Some((48.2039, 16.3619)),
+                        ),
+                        topic(
+                            "at_item_belvedere_art",
+                            "Belvedere Palace: Klimt's Kiss & Schiele",
+                            "Upper Belvedere, Der Kuss (1908-09), Egon Schiele, Marmorsaal",
+                            &["belvedere", "klimt", "schiele", "gold-phase"],
+                            "Das Obere Belvedere von Prinz Eugen von Savoyen beherbergt Gustav Klimts 'Der Kuss' (1908-09), die weltberühmte Ikone der Wiener Moderne aus Blattgold, Silber und Öl auf Leinwand. Daneben Meisterwerke von Egon Schiele ('Tod und Mädchen') und Oskar Kokoschka. Im historischen Marmorsaal wurde 1955 der Österreichische Staatsvertrag unterzeichnet.",
+                            &[
+                                "Book timeslot online for Upper Belvedere.",
+                                "The palace baroque gardens connecting Upper and Lower Belvedere are free to stroll dawn to dusk."
+                            ],
+                            Some((48.1915, 16.3809)),
+                        ),
+                    ],
+                },
+                InfoBranch {
+                    id: "at_branch_imperial".to_string(),
+                    title: "Imperial Vienna & Classical Music".to_string(),
+                    icon: "👑".to_string(),
+                    items: vec![
+                        topic(
+                            "at_item_hofburg_schatzkammer",
+                            "Hofburg Imperial Treasury & Crown Jewels",
+                            "Reichskrone (962 AD), Holy Lance, Order of the Golden Fleece",
+                            &["hofburg", "treasury", "schatzkammer", "habsburg"],
+                            "Die Kaiserliche Schatzkammer in der Wiener Hofburg birgt die Insignien des Heiligen Römischen Reiches Deutscher Nation: Die achteckige Reichskrone aus reinem Gold und Edelsteinen (um 962 AD), die Heilige Lanze und das Reichskreuz. Dazu die Österreichische Kaiserkrone Rudolfs II. (1602) und der Schatz des Ordens vom Goldenen Vlies.",
+                            &[
+                                "Closed on Tuesdays.",
+                                "Audio guide is highly recommended for the medieval coronation regalia."
+                            ],
+                            Some((48.2065, 16.3655)),
+                        ),
+                        topic(
+                            "at_item_staatsoper_stehplatz",
+                            "Staatsoper Standing Room Insider Guide (€10–€15)",
+                            "World-class opera for pocket change: Stehplatz protocol",
+                            &["staatsoper", "opera", "stehplatz", "budget"],
+                            "Die Wiener Staatsoper bietet eines der besten Musik-Schnäppchen der Welt: Rund 80 Minuten vor Vorstellungsbeginn öffnen die Stehplatzkassen an der Operngasse. Für €10 bis €15 erhält man Stehplätze im Parterre oder auf der Galerie. Wiener Brauch: Man bindet einen Seidenschal um die Messingstange des Platzes, um ihn während der Pausen zu reservieren.",
+                            &[
+                                "Queue ~80-90 minutes before curtain at the Operngasse entrance.",
+                                "Bring a scarf or cloth to tie to the brass railing to reserve your spot during intermission.",
+                                "Smart casual dress code recommended even for standing room."
+                            ],
+                            Some((48.2030, 16.3691)),
+                        ),
+                        topic(
+                            "at_item_schoenbrunn_palace",
+                            "Schönbrunn Imperial Residence & Gloriette",
+                            "1,441 Rococo rooms, Maria Theresa, Gloriette panorama, Tiergarten 1752",
+                            &["schoenbrunn", "palace", "gloriette", "zoo"],
+                            "Sommerresidenz der Habsburger mit 1.441 Zimmern, prunkvollen Rokoko-Appartements Maria Theresias und des jungen Mozart im Spiegelsaal. Der weitläufige Park umfasst die Aussichtskolonnade der Gloriette und den 1752 gegründeten Tiergarten Schönbrunn — den ältesten bestehenden Zoo der Welt.",
+                            &[
+                                "Park grounds and hike to Gloriette are free.",
+                                "Pre-book Grand Tour timeslot online to skip ticket lines.",
+                                "Gloriette café has panoramic views over Vienna at golden hour."
+                            ],
+                            Some((48.1858, 16.3122)),
+                        ),
+                    ],
+                },
+                InfoBranch {
+                    id: "at_branch_transit".to_string(),
+                    title: "Wiener Linien & Regional Corridors".to_string(),
+                    icon: "🚋".to_string(),
+                    items: vec![
+                        topic(
+                            "at_item_wiener_linien",
+                            "Wiener Linien U-Bahn, Ring Trams & Day Ticket",
+                            "U1-U6 grid, Trams 1/2/71/D, 24h weekend service, €8.00 day ticket",
+                            &["transit", "u-bahn", "tram", "tickets"],
+                            "Wiens öffentliches Verkehrsnetz zählt zu den effizientesten der Welt. Die Ring-Straßenbahnen (Linien 1, 2, 71, D) umrunden die historische Altstadt entlang Prachtbauten wie Parlament, Rathaus und Burgtheater. An Wochenenden verkehren die U-Bahn-Linien durchgehend 24 Stunden im 15-Minuten-Takt. Das 24-Stunden-Netzticket kostet €8.00.",
+                            &[
+                                "Buy 24h or 48h ticket at red ticket machines or WienMobil app.",
+                                "Honesty system: validate paper ticket once before first ride; heavy €105 penalty for unvalidated rides.",
+                                "Take Tram D from Hauptbahnhof via Ringstraße directly to Nussdorf."
+                            ],
+                            None,
+                        ),
+                        topic(
+                            "at_item_alpine_corridor",
+                            "Wachau Danube Terraces & Hallstatt Salt Mine",
+                            "ÖBB Railjet, Wachau wine path, prehistoric salt galleries",
+                            &["danube", "wachau", "hallstatt", "alpine"],
+                            "Die zwei großen Chrono-Korridore Österreichs:\n\
+                            • Wachau (UNESCO-Welterbe): Flusslandschaft der Donau zwischen Stift Melk und Krems, steile Riesling-Terrassen und die Ruine Dürnstein (wo Richard Löwenherz gefangen saß).\n\
+                            • Hallstatt (Salzkammergut): 7.000 Jahre prähistorischer Salzabbau in den Salzwelten über dem fjordartigen Dachstein-Gletschersee.",
+                            &[
+                                "ÖBB Railjet connects Wien Hbf to Melk in 50 minutes.",
+                                "Rent a bike in Melk and cycle the 39km Danube trail to Krems.",
+                                "Hallstatt salt mine requires booking a funicular + mine entry slot."
+                            ],
+                            Some((47.5622, 13.6493)),
+                        ),
+                    ],
+                },
+            ],
+        }
+    }
+
+    /// Full Japanese Knowledge Tree (Transit, Shinkansen, Konbini, Shrine Etiquette, Regions).
+    pub fn get_japan_knowledge_tree() -> KnowledgeTree {
+        KnowledgeTree {
+            country_code: "JP".to_string(),
+            title: "JapanCraft: Sovereign Baedeker Knowledge Tree".to_string(),
+            branches: vec![
+                InfoBranch {
+                    id: "jp_branch_transit".to_string(),
+                    title: "Transit, Shinkansen & IC Cards".to_string(),
+                    icon: "🚅".to_string(),
+                    items: vec![
+                        topic(
+                            "jp_item_jr_pass",
+                            "JR Pass Rules, Luggage Restrictions & Strategy",
+                            "7/14/21 day national vs regional passes, Nozomi surcharge, oversized baggage",
+                            &["transit", "jr-pass", "shinkansen", "luggage"],
+                            "Der Japan Rail Pass (7, 14 oder 21 Tage) deckt Shinkansen-Schnellzüge, JR-Regionallinien und den Narita Express ab. Beachte:\n\
+                            • Nozomi & Mizuho: Für die schnellsten Shinkansen-Züge ist seit 2023 ein Zusatzticket erforderlich; Hikari und Sakura sind voll abgedeckt.\n\
+                            • Großgepäck (Oversized Baggage): Gepäckstücke mit Gesamtumfang (L+B+H) über 160 cm bis 250 cm erfordern zwingend eine kostenlose Sitzplatzreservierung mit Gepäckbereich in den Tokaido/Sanyo/Kyushu Shinkansen.\n\
+                            • Regionalpässe (z.B. JR Kansai Wide Area Pass oder JR Hokuriku Arch) sind oft wirtschaftlicher als der landesweite Pass.",
+                            &[
+                                "Exchange your voucher at JR Travel Service Centers (Tokyo/Shinagawa/KIX).",
+                                "Reserve oversized luggage seats when picking up Shinkansen tickets.",
+                                "Use Japan Travel by NAVITIME app with 'JR Pass' filter enabled."
+                            ],
+                            None,
+                        ),
+                        topic(
+                            "jp_item_ic_cards",
+                            "Suica, Pasmo & Icoca Cards (Mobile Wallet Guide)",
+                            "Contactless tap-and-go for subways, local buses, konbini & coin lockers",
+                            &["transit", "suica", "pasmo", "icoca", "ic-card"],
+                            "IC-Karten (Suica, Pasmo im Kanto-Raum; Icoca in Kansai) sind vollständig interoperabel und der Schlüssel zum bargeldlosen Reisen. Man tippt sie an Bahn-Drehkreuzen, städtischen Bussen, Konbini-Kassen, Getränkeautomaten und Bahnhof-Schließfächern (Coin Lockers). Die digitale Suica / Pasmo kann in Apple Wallet oder Google Wallet hinzugefügt und mit Kreditkarte aufgeladen werden.",
+                            &[
+                                "Add Suica/Pasmo directly to your phone wallet for zero-wait boarding.",
+                                "Physical 'Welcome Suica' cards are available at Haneda/Narita with 28-day validity.",
+                                "Keep at least JPY 1,500 balance for hassle-free transfers."
+                            ],
+                            None,
+                        ),
+                        topic(
+                            "jp_item_shinkansen_etiquette",
+                            "Shinkansen Manners, Platform Markings & Eki-melo",
+                            "Queuing lines, silent carriages, eki-bento culture, luggage racks",
+                            &["shinkansen", "etiquette", "eki-bento", "manners"],
+                            "Shinkansen-Reisen folgt einem präzisen Ritual:\n\
+                            • Auf dem Bahnsteig: Linienmarkierungen auf dem Boden zeigen exakt Wagentür und Wartenummer.\n\
+                            • Im Zug: Telefongespräche sind im Passagierabteil tabu — wechsle in den Vorraum zwischen den Waggons.\n\
+                            • Eki-bento: Vor der Abfahrt kauft man am Bahnhof ein kunstvolles Ekiben (Bahnhofs-Bento mit regionalen Spezialitäten) und isst es genussvoll während der Fahrt.",
+                            &[
+                                "Line up strictly at your car door marking on the platform.",
+                                "Switch phones to 'Manner Mode' (silent) and use earphones.",
+                                "Recline your seat only after politely asking the passenger behind you."
+                            ],
+                            None,
+                        ),
+                    ],
+                },
+                InfoBranch {
+                    id: "jp_branch_dining".to_string(),
+                    title: "Konbini & Dining Etiquette".to_string(),
+                    icon: "🍱".to_string(),
+                    items: vec![
+                        topic(
+                            "jp_item_konbini_survival",
+                            "Konbini Guide: 7-Eleven, Lawson, FamilyMart & 19h Time Sales",
+                            "Onigiri, tamago sando, hot cabinets, and 20-50% evening discounts",
+                            &["konbini", "7-eleven", "lawson", "familymart", "budget"],
+                            "Japans 55.000 Konbini sind kulinarische Wunderkammern des Alltags:\n\
+                            • 7-Eleven: Weltberühmtes Tamago Sando (Eiersalat-Sandwich auf butterweichem Shokupan) und Premium-Onigiri (Lachs, Umeboshi, Tuna-Mayo).\n\
+                            • Lawson: Legendäres 'Karaage-kun' (knusprige panierte Hähnchenhappen an der Heißtheke).\n\
+                            • FamilyMart: 'FamiChiki' frittiertes Hähnchenfilet.\n\
+                            • 19:00–20:00 Time Sales (Timuri): Bento-Boxen und frisches Sushi werden abends mit gelben Aufklebern um 20% bis 50% rabattiert.",
+                            &[
+                                "Pinch pull-tabs 1-2-3 on onigiri packaging to keep nori seaweed crisp.",
+                                "Ask 'Atatamemasu ka?' for staff to microwave bentos in 30 seconds.",
+                                "Hot canned coffees and teas are in the red-shelf heated cabinets."
+                            ],
+                            None,
+                        ),
+                        topic(
+                            "jp_item_ramen_slurping",
+                            "Ramen, Soba & Slurping Etiquette (Susuru)",
+                            "Shokkenki ticket vending machines, cooling noodles, zero lingering",
+                            &["ramen", "soba", "susuru", "noodles"],
+                            "Das geräuschvolle Schlürfen (Susuru) von Ramen und Soba ist in Japan kein Verstoß, sondern erwünscht: Es kühlt die heißen Nudeln im Mund ab, verstärkt das Aroma der Brühe und zeigt dem Koch Wertschätzung. Fast alle Ramen-Bars arbeiten mit Shokkenki (Ticketautomaten am Eingang). Man wirft Bargeld ein, drückt den Nudel-Button und gibt den Beleg am Tresen ab.",
+                            &[
+                                "Buy your ticket at the machine before sitting down.",
+                                "Slurp vigorously — it cools the broth and aerates aromatics.",
+                                "Do not linger on your phone after finishing if people are waiting outside."
+                            ],
+                            None,
+                        ),
+                        topic(
+                            "jp_item_izakaya_otoshi",
+                            "Izakaya Rules, Otoshi Seating Fee & Pouring Etiquette",
+                            "Table charge snacks, shouting 'Sumimasen!', and communal kanpai",
+                            &["izakaya", "otoshi", "kanpai", "beer"],
+                            "Die Izakaya ist die traditionelle japanische Kneipe:\n\
+                            • Otoshi: Nach dem Hinsetzen erhält jeder Gast automatisch ein kleines Schälchen mit einer Vorspeise (Otoshi). Dies dient als gesetzlicher Sitzplatzaufschlag (ca. JPY 300–500).\n\
+                            • Bestellung: Rufe laut und selbstbewusst 'Sumimasen!' (Entschuldigung) zum Servicepersonal.\n\
+                            • Einschenken: Schenke niemals dein eigenes Bierglas voll — schenke zuerst deinem Gegenüber ein; dieser revanchiert sich.",
+                            &[
+                                "Expect the small Otoshi cover charge on your bill.",
+                                "Say 'Kanpai!' only after everyone has been served.",
+                                "Pour drinks with two hands for elder or senior companions."
+                            ],
+                            None,
+                        ),
+                        topic(
+                            "jp_item_kaiseki_washoku",
+                            "Kaiseki Seasonal Gastronomy (Shun Philosophy)",
+                            "Seasonal washoku harmony, five flavors, and ceramic artistry",
+                            &["kaiseki", "washoku", "unesco", "seasonal"],
+                            "Kaiseki-Ryori ist die Krönung der japanischen Kulinarik, verwurzelt in der Teezeremonie von Kyoto. Das Herzstück ist 'Shun' — die Verwendung von Zutaten im exakten Moment ihres jahreszeitlichen Höhepunkts (z.B. Bambussprossen im Frühling, Ayu-Süßwasserfisch im Sommer, Matsutake-Pilze im Herbst). Jedes Gericht wird auf kunstvoll abgestimmter Keramik und Lackware serviert.",
+                            &[
+                                "Kaiseki courses take 2 to 3 hours; savor each course slowly.",
+                                "Eat smaller side garnishes in the order presented.",
+                                "Avoid strong perfume that masks subtle dashi and cedar aromas."
+                            ],
+                            None,
+                        ),
+                    ],
+                },
+                InfoBranch {
+                    id: "jp_branch_culture".to_string(),
+                    title: "Culture & Shinto/Buddhist Etiquette".to_string(),
+                    icon: "⛩️".to_string(),
+                    items: vec![
+                        topic(
+                            "jp_item_shrine_vs_temple",
+                            "Shinto Shrine (Jinja) vs Buddhist Temple (Otera)",
+                            "Torii vs Sanmon, Kami spirits vs Buddha, incense vs bells",
+                            &["shinto", "buddhism", "shrine", "temple"],
+                            "Shinto-Schreine (Jinja) erkennt man am roten oder hölzernen Torii-Tor am Eingang; sie ehren Naturgeister (Kami). Buddhistische Tempel (Otera) besitzen monumentale Sanmon-Tore, Pagoden und große Weihrauchbecken (Jokoro). Shinto gehört dem Leben (Geburten, Hochzeiten, Neujahr); Buddhismus begleitet das Jenseits und die Ahnen.",
+                            &[
+                                "Bow slightly before stepping under a Shinto Torii gate.",
+                                "Walk along the sides of the path (Sando); the center is reserved for Kami.",
+                                "Wave fragrant smoke from temple Jokoro incense toward your head for health."
+                            ],
+                            None,
+                        ),
+                        topic(
+                            "jp_item_temizuya_bowing",
+                            "Temizuya Purification & 2-Bows 2-Claps Shrine Ritual",
+                            "Hand cleansing pavilion and the prayer ritual at the altar",
+                            &["temizuya", "ritual", "worship", "clapping"],
+                            "Vor dem Gebet am Schrein reinigt man Geist und Körper am Temizuya-Wasserbecken:\n\
+                            1. Schöpfkelle mit rechter Hand füllen, linke Hand waschen.\n\
+                            2. Kelle in linke Hand wechseln, rechte Hand waschen.\n\
+                            3. Kelle wieder rechts: Wasser in die linke Handfläche gießen und Mund ausspülen (niemals direkt aus der Kelle trinken!).\n\
+                            4. Kelle senkrecht aufstellen, damit das Restwasser den Griff für den Nächsten abspült.\n\n\
+                            Am Altar: Münze in den Opferkasten werfen (5-Yen-Münze mit Loch bringt 'Go-en' / Glück). 2 tiefe Verbeugungen (Ni-rei), 2 Händeklatschen (Ni-hai), stilles Gebet, 1 abschließende tiefe Verbeugung (Ichi-rei).",
+                            &[
+                                "Remember the rule: 2 bows, 2 claps, 1 bow (at Shinto shrines only; never clap at Buddhist temples!).",
+                                "Toss a 5-yen coin for good fortune connection ('go-en').",
+                                "Do not drink directly from the purification ladle."
+                            ],
+                            None,
+                        ),
+                        topic(
+                            "jp_item_genkan_shoes",
+                            "Footwear (Genkan) Protocol & Restroom Slippers",
+                            "Raised tatami thresholds, shoe direction, and the toilet slipper trap",
+                            &["genkan", "shoes", "tatami", "slippers"],
+                            "Überall dort, wo ein erhöhter Holzboden oder Tatami-Matten beginnen (Ryokan, Tempel, traditionelle Lokale), müssen Straßenschuhe zwingend ausgezogen werden. Man tritt aus den Schuhen direkt auf den Holzsteg, ohne mit den Strümpfen den Steinboden zu berühren, und dreht die Schuhe mit den Spitzen zur Tür um. In Toiletten stehen spezielle WC-Pantoletten bereit — diese niemals im Wohnbereich anlassen!",
+                            &[
+                                "Always wear clean, hole-free socks when traveling in Japan.",
+                                "Never let bare feet or socks touch the outdoor stone genkan floor.",
+                                "Remember to step out of restroom slippers before returning to tatami rooms."
+                            ],
+                            None,
+                        ),
+                        topic(
+                            "jp_item_bowing_angles",
+                            "The Three Bows: Eshaku (15°), Keirei (30°), Saikeirei (45°)",
+                            "Degrees of Japanese bowing from casual greeting to deep reverence",
+                            &["bowing", "ojigi", "manners", "respect"],
+                            "Verbeugungen (Ojigi) drücken Respekt und Harmonie aus:\n\
+                            • Eshaku (15°): Beiläufiges Nicken zur Begrüßung im Vorbeigehen oder beim Betreten von Geschäften.\n\
+                            • Keirei (30°): Höfliche Standard-Verbeugung für Kunden, Geschäftspartner und Schreine.\n\
+                            • Saikeirei (45°): Tiefe Verbeugung bei aufrichtiger Entschuldigung oder höchstem Respekt.",
+                            &[
+                                "Keep your back straight while bowing from the hips.",
+                                "Men keep hands at their sides; women clasp hands in front.",
+                                "A gentle 15° nod suffices for almost all everyday travel situations."
+                            ],
+                            None,
+                        ),
+                        topic(
+                            "jp_item_public_manners",
+                            "Public Etiquette: Tabearuki, Silent Commutes & Trash Protocol",
+                            "No walking while eating, whisper-quiet trains, carrying rubbish home",
+                            &["manners", "trains", "trash", "tabearuki"],
+                            "Drei goldene Verhaltensregeln in der Öffentlichkeit:\n\
+                            • Kein Essen im Gehen (Tabearuki): Verzehre Snacks direkt am Konbini oder Stand.\n\
+                            • Ruhe in Zügen: Kein lautes Sprechen, kein Telefonieren in der Bahn.\n\
+                            • Müll-Disziplin: Öffentliche Mülleimer sind selten; nimm eine kleine Plastiktüte mit, um deinen Müll im Hotel oder Konbini zu entsorgen.",
+                            &[
+                                "Carry a small plastic bag for personal trash in your daypack.",
+                                "Never talk on the phone inside trains or subways.",
+                                "Blow your nose in private or restrooms, never loudly in public."
+                            ],
+                            None,
+                        ),
+                    ],
+                },
+                InfoBranch {
+                    id: "jp_branch_regions".to_string(),
+                    title: "Regions & Chrono-Corridors".to_string(),
+                    icon: "🗾".to_string(),
+                    items: vec![
+                        topic(
+                            "jp_item_tokaido_highway",
+                            "The 53 Stations of the Tokaido & Edo-Period Travel",
+                            "Hiroshige's prints, Nihonbashi zero milestone, Hakone sekisho barrier",
+                            &["tokaido", "edo", "hiroshige", "history"],
+                            "Die Tokaido war die wichtigste der fünf Poststraßen (Gokaido) des Tokugawa-Shogunats und verband das politische Machtzentrum Edo (Tokyo) mit der kaiserlichen Residenzstadt Kyoto. Reisende passierten 53 Poststationen zu Fuß oder per Sänfte. Utagawa Hiroshiges Farbholzschnitt-Serie 'Die 53 Stationen der Tokaido' (1832) verewigte die Rastplätze, Gasthäuser und Gebirgspässe für die Ewigkeit.",
+                            &[
+                                "Start at Nihonbashi Zero Milestone in central Tokyo.",
+                                "Visit Hakone Sekisho to see the preserved wooden checkpoint inspection halls.",
+                                "Follow the modern Tokaido Shinkansen path retracing the ancient Edo route."
+                            ],
+                            Some((35.6840, 139.7745)),
+                        ),
+                        topic(
+                            "jp_item_kansai_cultural_core",
+                            "Kyoto Imperial Capital, Osaka Kitchen & Nara Antiquity",
+                            "Over 1,200 years of cultural heritage in western Japan",
+                            &["kansai", "kyoto", "osaka", "nara"],
+                            "Die Kansai-Region ist das historische Herz Japans:\n\
+                            • Kyoto: Kaiserstadt von 794 bis 1868 mit über 2.000 Tempeln, Schreinen und Geisha-Vierteln (Gion, Pontocho).\n\
+                            • Osaka: 'Tenka no Daidokoro' (Küche des Reiches) mit unvergleichlicher Streetfood-Kultur (Takoyaki, Okonomiyaki) und Dotonbori-Neon.\n\
+                            • Nara: Japans erste feste Hauptstadt (710 AD) mit dem Großen Buddha im Todaiji und den zahmen Sika-Hirschen im Nara-Park.",
+                            &[
+                                "JR Special Rapid trains connect Osaka and Kyoto in just 28 minutes.",
+                                "In Nara, buy Shika-senbei crackers and bow to the deer before feeding.",
+                                "Explore Gion in the early evening for lantern-lit wooden machiya alleys."
+                            ],
+                            Some((35.0088, 135.7725)),
+                        ),
+                        topic(
+                            "jp_item_hokuriku_chugoku",
+                            "Kanazawa Geisha Teahouses & Hiroshima Delta Rebirth",
+                            "Kenrokuen garden, gold leaf craftsmanship, and the Seto Inland Sea",
+                            &["kanazawa", "hiroshima", "hokuriku", "chugoku"],
+                            "• Kanazawa: Residenz des wohlhabenden Maeda-Clans mit dem Kenrokuen-Landschaftsgarten, erhaltenen Samurai-Vierteln (Nagamachi) und Higashi Chaya Geisha-Teehäusern. Zentrum der japanischen Blattgold-Herstellung.\n\
+                            • Hiroshima: Am Seto-Binnenmeer gelegen, Symbol des Friedens mit dem Genbaku Dome und dem Friedenspark, berühmt für Hiroshima-Okonomiyaki mit Nudelschicht.",
+                            &[
+                                "Hokuriku Shinkansen connects Tokyo directly to Kanazawa in 2h 30m.",
+                                "Taste gold-leaf soft cream in Kanazawa's Higashi Chaya district.",
+                                "Take the short ferry from Hiroshima to Miyajima's floating Torii gate."
+                            ],
+                            Some((36.5613, 136.6562)),
+                        ),
+                    ],
+                },
+            ],
+        }
+    }
+
+    /// Retrieve knowledge tree for a given country code ("AT" or "JP").
+    pub fn get_knowledge_tree(country_code: &str) -> KnowledgeTree {
+        match country_code.to_uppercase().as_str() {
+            "AT" | "AUSTRIA" => Self::get_austria_knowledge_tree(),
+            _ => Self::get_japan_knowledge_tree(),
+        }
+    }
+
+    /// Lookup a specific item by ID across all branches in a country's knowledge tree.
+    pub fn find_tree_item(country_code: &str, item_id: &str) -> Option<InfoTopicItem> {
+        let tree = Self::get_knowledge_tree(country_code);
+        for branch in tree.branches {
+            for item in branch.items {
+                if item.id == item_id {
+                    return Some(item);
+                }
+            }
+        }
+        None
+    }
+
+    /// Return all items in a country's knowledge tree flattened.
+    pub fn all_tree_items(country_code: &str) -> Vec<InfoTopicItem> {
+        let tree = Self::get_knowledge_tree(country_code);
+        tree.branches.into_iter().flat_map(|b| b.items).collect()
+    }
 }
 
 /// Preloaded transit snapshot (offline blob).
@@ -634,4 +1276,87 @@ pub fn offline_chat_answer(ctx: &SightChatContext, question: &str) -> String {
         ctx.transit_blob,
         ctx.sources.join("; ")
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_austria_knowledge_tree_vienna_restaurants() {
+        let tree = BaedekerCatalog::get_austria_knowledge_tree();
+        assert_eq!(tree.country_code, "AT");
+        let resto_branch = tree
+            .branches
+            .iter()
+            .find(|b| b.id == "at_branch_restaurants")
+            .expect("Must have restaurants branch");
+        assert!(resto_branch.items.len() >= 6);
+
+        // Verify key restaurants & Beisl rules are present
+        let ids: Vec<&str> = resto_branch.items.iter().map(|i| i.id.as_str()).collect();
+        assert!(ids.contains(&"at_item_beisl_rules"));
+        assert!(ids.contains(&"at_item_falstaff_michelin"));
+        assert!(ids.contains(&"at_item_traditional_beisln"));
+        assert!(ids.contains(&"at_item_wuerstelstand"));
+        assert!(ids.contains(&"at_item_broetchen"));
+
+        // Check specific intel content
+        let orlik_beisl = resto_branch
+            .items
+            .iter()
+            .find(|i| i.id == "at_item_traditional_beisln")
+            .unwrap();
+        assert!(orlik_beisl.body.contains("Gasthaus Orlik"));
+        assert!(orlik_beisl.body.contains("Plachutta"));
+        assert!(orlik_beisl.body.contains("Woracziczky"));
+
+        let bitzinger = resto_branch
+            .items
+            .iter()
+            .find(|i| i.id == "at_item_wuerstelstand")
+            .unwrap();
+        assert!(bitzinger.body.contains("Bitzinger"));
+        assert!(bitzinger.body.contains("Alles Wurscht"));
+        assert!(bitzinger.body.contains("Leberkas-Pepi"));
+    }
+
+    #[test]
+    fn test_japan_knowledge_tree() {
+        let tree = BaedekerCatalog::get_japan_knowledge_tree();
+        assert_eq!(tree.country_code, "JP");
+        assert!(tree.branches.len() >= 4);
+
+        let transit = tree
+            .branches
+            .iter()
+            .find(|b| b.id == "jp_branch_transit")
+            .expect("Must have transit branch");
+        assert!(transit.items.iter().any(|i| i.id == "jp_item_jr_pass"));
+
+        let dining = tree
+            .branches
+            .iter()
+            .find(|b| b.id == "jp_branch_dining")
+            .expect("Must have dining branch");
+        assert!(dining.items.iter().any(|i| i.id == "jp_item_konbini_survival"));
+
+        let culture = tree
+            .branches
+            .iter()
+            .find(|b| b.id == "jp_branch_culture")
+            .expect("Must have culture branch");
+        assert!(culture.items.iter().any(|i| i.id == "jp_item_temizuya_bowing"));
+        assert!(culture.items.iter().any(|i| i.id == "jp_item_genkan_shoes"));
+    }
+
+    #[test]
+    fn test_find_tree_item() {
+        let item = BaedekerCatalog::find_tree_item("AT", "at_item_beisl_rules");
+        assert!(item.is_some());
+        assert_eq!(item.unwrap().title, "The Golden Vienna Beisl Rules & Culture");
+
+        let jp_item = BaedekerCatalog::find_tree_item("JP", "jp_item_jr_pass");
+        assert!(jp_item.is_some());
+    }
 }

@@ -131,6 +131,11 @@ impl TravelCraftEngine {
         }
     }
 
+    /// Retrieve sovereign knowledge tree (hierarchical categorized intel).
+    pub fn get_knowledge_tree(&self, country_code: &str) -> travelcraft_baedeker::KnowledgeTree {
+        BaedekerCatalog::get_knowledge_tree(country_code)
+    }
+
     pub fn plan_optimized_route(
         &self,
         country_code: &str,

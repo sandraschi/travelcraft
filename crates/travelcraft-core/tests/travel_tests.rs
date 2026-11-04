@@ -95,3 +95,50 @@ fn test_sight_chat_context_and_offline_answer() {
     assert!(ans.contains("OFFLINE BLOB"));
     assert!(ans.len() > 100);
 }
+
+#[test]
+fn test_travelcraft_knowledge_trees_integration() {
+    let engine = TravelCraftEngine::new_in_memory().expect("engine init");
+
+    // Austria Knowledge Tree: Extensive Vienna dining & culture
+    let at_tree = engine.get_knowledge_tree("AT");
+    assert_eq!(at_tree.country_code, "AT");
+    let resto_branch = at_tree
+        .branches
+        .iter()
+        .find(|b| b.id == "at_branch_restaurants")
+        .expect("Restaurants branch");
+    assert!(resto_branch.items.len() >= 6);
+
+    let rules = resto_branch
+        .items
+        .iter()
+        .find(|i| i.id == "at_item_beisl_rules")
+        .expect("Beisl rules");
+    assert!(rules.body.contains("Fotokarten"));
+    assert!(rules.body.contains("Pfiff"));
+
+    let orlik = resto_branch
+        .items
+        .iter()
+        .find(|i| i.id == "at_item_traditional_beisln")
+        .expect("Traditional beisln");
+    assert!(orlik.body.contains("Gasthaus Orlik"));
+    assert!(orlik.body.contains("Plachutta"));
+
+    // Japan Knowledge Tree: Transit, Konbini, Culture
+    let jp_tree = engine.get_knowledge_tree("JP");
+    assert_eq!(jp_tree.country_code, "JP");
+    assert!(jp_tree.branches.len() >= 4);
+    let konbini = jp_tree
+        .branches
+        .iter()
+        .find(|b| b.id == "jp_branch_dining")
+        .expect("Dining branch")
+        .items
+        .iter()
+        .find(|i| i.id == "jp_item_konbini_survival")
+        .expect("Konbini item");
+    assert!(konbini.body.contains("Tamago Sando"));
+    assert!(konbini.body.contains("Time Sales"));
+}

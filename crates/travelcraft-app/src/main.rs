@@ -45,6 +45,7 @@ pub struct TravelCraftApp {
     engine: TravelCraftEngine,
     selected_country_code: String,
     selected_waypoint_id: Option<String>,
+    selected_info_item_id: Option<String>,
     active_tab: ActiveViewTab,
     status_msg: String,
     optimized_route: Option<RouteOptimizationResult>,
@@ -115,6 +116,7 @@ impl TravelCraftApp {
             engine,
             selected_country_code: "JP".to_string(),
             selected_waypoint_id: Some("jp_nihonbashi".to_string()),
+            selected_info_item_id: None,
             active_tab: ActiveViewTab::ChronoMap,
             status_msg: "Baedeker 2030 Chrono-Cartography Ready".to_string(),
             optimized_route: initial_plan,
@@ -673,232 +675,785 @@ impl eframe::App for TravelCraftApp {
                 });
         }
 
-        // LEFT PANEL: Country & Waypoint Selector
+        // LEFT PANEL: Country & Waypoint Selector & Sovereign Knowledge Tree
         egui::Panel::left("left_waypoint_tree").show(ui, |ui| {
-            ui.set_width(320.0);
-            ui.label(
-                egui::RichText::new("Country Edition")
-                    .size(17.0)
-                    .strong()
-                    .color(GOLD),
-            );
-            ui.horizontal(|ui| {
-                let jp_sel = self.selected_country_code == "JP";
-                if ui.selectable_label(jp_sel, "JapanCraft").clicked() {
-                    self.selected_country_code = "JP".to_string();
-                    self.selected_waypoint_id = Some("jp_nihonbashi".to_string());
-                    self.optimized_route = self.engine.plan_optimized_route("JP").ok();
-                    self.refresh_itinerary();
-                    self.status_msg = "Selected JapanCraft Edition".to_string();
-                }
-                let at_sel = self.selected_country_code == "AT";
-                if ui.selectable_label(at_sel, "AustriaCraft").clicked() {
-                    self.selected_country_code = "AT".to_string();
-                    self.selected_waypoint_id = Some("at_stephansdom".to_string());
-                    self.optimized_route = self.engine.plan_optimized_route("AT").ok();
-                    self.refresh_itinerary();
-                    self.status_msg = "Selected AustriaCraft Edition".to_string();
-                }
-            });
-
-            ui.add_space(8.0);
-            ui.separator();
-
-            if let Some(country) = self.current_country() {
+            ui.set_width(330.0);
+            egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.label(
-                    egui::RichText::new(&country.title)
-                        .size(15.0)
+                    egui::RichText::new("Country Edition")
+                        .size(17.0)
                         .strong()
-                        .color(TEAL),
+                        .color(GOLD),
                 );
-                ui.label(
-                    egui::RichText::new(&country.subtitle)
-                        .size(15.0)
-                        .color(MIST),
-                );
+                ui.horizontal(|ui| {
+                    let jp_sel = self.selected_country_code == "JP";
+                    if ui.selectable_label(jp_sel, "🗾 JapanCraft").clicked() {
+                        self.selected_country_code = "JP".to_string();
+                        self.selected_waypoint_id = Some("jp_nihonbashi".to_string());
+                        self.selected_info_item_id = None;
+                        self.optimized_route = self.engine.plan_optimized_route("JP").ok();
+                        self.refresh_itinerary();
+                        self.map_zoom = 1.0;
+                        self.map_pan = egui::Vec2::ZERO;
+                        self.status_msg = "Selected JapanCraft Edition".to_string();
+                    }
+                    let at_sel = self.selected_country_code == "AT";
+                    if ui.selectable_label(at_sel, "🏰 AustriaCraft").clicked() {
+                        self.selected_country_code = "AT".to_string();
+                        self.selected_waypoint_id = Some("at_stephansdom".to_string());
+                        self.selected_info_item_id = None;
+                        self.optimized_route = self.engine.plan_optimized_route("AT").ok();
+                        self.refresh_itinerary();
+                        self.map_zoom = 1.0;
+                        self.map_pan = egui::Vec2::ZERO;
+                        self.status_msg = "Selected AustriaCraft Edition".to_string();
+                    }
+                });
+
                 ui.add_space(8.0);
-                for route in &country.curated_routes {
+                ui.separator();
+
+                if let Some(country) = self.current_country() {
                     ui.label(
-                        egui::RichText::new(&route.title)
-                            .size(16.0)
+                        egui::RichText::new(&country.title)
+                            .size(15.0)
+                            .strong()
+                            .color(TEAL),
+                    );
+                    ui.label(
+                        egui::RichText::new(&country.subtitle)
+                            .size(13.0)
+                            .color(MIST),
+                    );
+                    ui.add_space(8.0);
+
+                    // SECTION 1: Chrono-Waypoints
+                    egui::CollapsingHeader::new(
+                        egui::RichText::new("📍 Chrono-Waypoints & Path")
+                            .size(15.0)
                             .strong()
                             .color(GOLD),
-                    );
-                    for wp in &route.waypoints {
-                        let is_wp_sel = self.selected_waypoint_id.as_deref() == Some(&wp.id);
-                        let wp_title = format!(
-                            "{} [{}] {}",
-                            if is_wp_sel { ">" } else { "-" },
-                            wp.year_ad,
-                            wp.name
-                        );
-                        if ui
-                            .selectable_label(is_wp_sel, egui::RichText::new(wp_title).size(16.0))
-                            .clicked()
-                        {
-                            self.selected_waypoint_id = Some(wp.id.clone());
-                            self.status_msg = format!("Inspecting {}", wp.name);
+                    )
+                    .default_open(true)
+                    .show(ui, |ui| {
+                        for route in &country.curated_routes {
+                            ui.label(
+                                egui::RichText::new(format!("Route: {}", route.title))
+                                    .size(12.0)
+                                    .color(MIST),
+                            );
+                            for wp in &route.waypoints {
+                                let is_wp_sel = self.selected_waypoint_id.as_deref() == Some(&wp.id);
+                                let wp_title = format!(
+                                    "{} [{}] {}",
+                                    if is_wp_sel { "▶" } else { "•" },
+                                    wp.year_ad,
+                                    wp.name
+                                );
+                                if ui
+                                    .selectable_label(is_wp_sel, egui::RichText::new(wp_title).size(13.5))
+                                    .clicked()
+                                {
+                                    self.selected_waypoint_id = Some(wp.id.clone());
+                                    self.selected_info_item_id = None;
+                                    self.active_tab = ActiveViewTab::WaypointDetail;
+                                    self.status_msg = format!("Inspecting {}", wp.name);
+                                }
+                            }
                         }
-                    }
+                    });
+
+                    ui.add_space(6.0);
+
+                    // SECTION 2: Sovereign Knowledge Tree (Japan or Austria)
+                    let tree_title = if self.selected_country_code == "AT" {
+                        "🌳 AustriaCraft Knowledge Tree"
+                    } else {
+                        "🌳 JapanCraft Knowledge Tree"
+                    };
+                    egui::CollapsingHeader::new(
+                        egui::RichText::new(tree_title)
+                            .size(15.0)
+                            .strong()
+                            .color(GOLD),
+                    )
+                    .default_open(true)
+                    .show(ui, |ui| {
+                        let tree = travelcraft_baedeker::BaedekerCatalog::get_knowledge_tree(
+                            &self.selected_country_code,
+                        );
+                        for branch in &tree.branches {
+                            let branch_header = format!("{} {}", branch.icon, branch.title);
+                            egui::CollapsingHeader::new(
+                                egui::RichText::new(branch_header)
+                                    .size(13.5)
+                                    .strong()
+                                    .color(TEAL),
+                            )
+                            .default_open(true)
+                            .show(ui, |ui| {
+                                for item in &branch.items {
+                                    let is_item_sel =
+                                        self.selected_info_item_id.as_deref() == Some(&item.id);
+                                    let item_title = format!(
+                                        "{} {}",
+                                        if is_item_sel { "▶" } else { "•" },
+                                        item.title
+                                    );
+                                    let label = egui::RichText::new(item_title)
+                                        .size(13.0)
+                                        .color(if is_item_sel { GOLD } else { PAPER });
+                                    if ui.selectable_label(is_item_sel, label).clicked() {
+                                        self.selected_info_item_id = Some(item.id.clone());
+                                        self.selected_waypoint_id = None;
+                                        self.active_tab = ActiveViewTab::WaypointDetail;
+                                        self.status_msg = format!("Selected intel: {}", item.title);
+                                    }
+                                }
+                            });
+                        }
+                    });
                 }
-            }
+            });
         });
 
         // CENTRAL PANEL
         egui::CentralPanel::default().show(ui, |ui| {
             match self.active_tab {
                 ActiveViewTab::ChronoMap => {
-                    big_heading(ui, "Chrono-Cartographic Interactive Map");
-                    body_text(ui, "Mouse wheel zooms. Drag pans. Click a waypoint marker to open its dossier.");
-                    ui.add_space(8.0);
+                    big_heading(ui, "Chrono-Cartographic Interactive Map (WGS84 Mercator)");
+                    body_text(
+                        ui,
+                        "True geographic projection with historical route corridors, coastlines, waterways & culture pins. Drag to pan, scroll to zoom.",
+                    );
+                    ui.add_space(6.0);
+
+                    let bbox = if self.selected_country_code == "AT" {
+                        (46.6, 49.2, 9.5, 17.5)
+                    } else {
+                        (33.0, 38.5, 131.0, 141.5)
+                    };
 
                     let wps = self.all_waypoints_flat();
-                    if wps.is_empty() {
-                        body_text(ui, "No waypoints in this edition.");
-                    } else {
-                        // Zoom controls (buttons + wheel).
-                        ui.horizontal(|ui| {
-                            if ui.button("Zoom -").clicked() {
-                                self.map_zoom = (self.map_zoom / 1.25).clamp(0.5, 8.0);
-                            }
-                            if ui.button("Reset").clicked() {
-                                self.map_zoom = 1.0;
-                                self.map_pan = egui::Vec2::ZERO;
-                            }
-                            if ui.button("Zoom +").clicked() {
-                                self.map_zoom = (self.map_zoom * 1.25).clamp(0.5, 8.0);
-                            }
-                            ui.label(egui::RichText::new(format!("Zoom {:.1}x", self.map_zoom)).size(16.0).color(GOLD));
-                        });
-                        ui.add_space(4.0);
-                        let (rect, response) =
-                            ui.allocate_exact_size(egui::vec2(ui.available_width(), 340.0), egui::Sense::click_and_drag());
-                        // Wheel zoom (the actual fix: read scroll delta on hover).
-                        let wheel = ui.input(|i| i.smooth_scroll_delta.y);
-                        if response.hovered() && wheel != 0.0 {
-                            let factor = (1.0_f32 + wheel * 0.0015).clamp(0.8, 1.25);
-                            self.map_zoom = (self.map_zoom * factor).clamp(0.5, 8.0);
+                    let tree_items = travelcraft_baedeker::BaedekerCatalog::all_tree_items(
+                        &self.selected_country_code,
+                    );
+
+                    // Map controls
+                    ui.horizontal(|ui| {
+                        if ui.button("Zoom -").clicked() {
+                            self.map_zoom = (self.map_zoom / 1.25).clamp(0.5, 12.0);
                         }
-                        // Drag pan.
-                        if response.dragged() {
-                            self.map_pan += response.drag_delta();
+                        if ui.button("Center & Reset").clicked() {
+                            self.map_zoom = 1.0;
+                            self.map_pan = egui::Vec2::ZERO;
                         }
-                        // Click nearest marker to select.
-                        if response.clicked() {
-                            if let Some(pos) = response.interact_pointer_pos() {
-                                let mut best_id: Option<String> = None;
-                                let mut best_d = f32::MAX;
-                                for (i, w) in wps.iter().enumerate() {
-                                    let p = marker_pos(rect, self.map_pan, self.map_zoom, wps.len(), i);
-                                    let d = (p - pos).length();
-                                    if d < 28.0 && d < best_d {
-                                        best_d = d;
-                                        best_id = Some(w.id.clone());
+                        if ui.button("Zoom +").clicked() {
+                            self.map_zoom = (self.map_zoom * 1.25).clamp(0.5, 12.0);
+                        }
+                        ui.label(
+                            egui::RichText::new(format!("Zoom {:.1}x", self.map_zoom))
+                                .size(15.0)
+                                .color(GOLD),
+                        );
+                        ui.separator();
+                        let ed_label = if self.selected_country_code == "AT" {
+                            "AustriaCraft: Vienna Basin, Danube Corridor & Alps"
+                        } else {
+                            "JapanCraft: Tokaido Historical Highway & Kansai"
+                        };
+                        ui.label(egui::RichText::new(ed_label).size(13.5).color(MIST));
+                    });
+
+                    ui.add_space(4.0);
+
+                    let (rect, response) = ui.allocate_exact_size(
+                        egui::vec2(ui.available_width(), 440.0),
+                        egui::Sense::click_and_drag(),
+                    );
+
+                    // Wheel zoom
+                    let wheel = ui.input(|i| i.smooth_scroll_delta.y);
+                    if response.hovered() && wheel != 0.0 {
+                        let factor = (1.0_f32 + wheel * 0.0015).clamp(0.8, 1.25);
+                        self.map_zoom = (self.map_zoom * factor).clamp(0.5, 12.0);
+                    }
+                    // Drag pan
+                    if response.dragged() {
+                        self.map_pan += response.drag_delta();
+                    }
+
+                    // Click detection
+                    if response.clicked() {
+                        if let Some(pos) = response.interact_pointer_pos() {
+                            let mut clicked_wp: Option<String> = None;
+                            let mut best_d = 28.0;
+                            for w in &wps {
+                                let p = project_coords(
+                                    w.lat,
+                                    w.lon,
+                                    bbox,
+                                    rect,
+                                    self.map_pan,
+                                    self.map_zoom,
+                                );
+                                let d = (p - pos).length();
+                                if d < best_d {
+                                    best_d = d;
+                                    clicked_wp = Some(w.id.clone());
+                                }
+                            }
+                            if let Some(id) = clicked_wp {
+                                self.selected_waypoint_id = Some(id.clone());
+                                self.selected_info_item_id = None;
+                                self.status_msg = format!("Map selected waypoint {}", id);
+                            } else {
+                                // Check culture / gastronomy pins
+                                for item in &tree_items {
+                                    if let (Some(lat), Some(lon)) = (item.lat, item.lon) {
+                                        let p = project_coords(
+                                            lat,
+                                            lon,
+                                            bbox,
+                                            rect,
+                                            self.map_pan,
+                                            self.map_zoom,
+                                        );
+                                        let d = (p - pos).length();
+                                        if d < 22.0 {
+                                            self.selected_info_item_id = Some(item.id.clone());
+                                            self.selected_waypoint_id = None;
+                                            self.status_msg =
+                                                format!("Map selected intel: {}", item.title);
+                                            break;
+                                        }
                                     }
                                 }
-                                if let Some(id) = best_id {
-                                    self.selected_waypoint_id = Some(id.clone());
-                                    self.status_msg = format!("Map selected {}", id);
+                            }
+                        }
+                    }
+
+                    let painter = ui.painter();
+
+                    // 1. Deep ocean / dark ink canvas
+                    painter.rect_filled(rect, 6.0, egui::Color32::from_rgb(6, 12, 26));
+                    painter.rect_stroke(
+                        rect,
+                        6.0,
+                        egui::Stroke::new(2.5, GOLD),
+                        egui::StrokeKind::Inside,
+                    );
+
+                    // 2. Graticule Lat/Lon Grid lines & Coordinate labels
+                    let (grid_lats, grid_lons): (&[f64], &[f64]) =
+                        if self.selected_country_code == "AT" {
+                            (
+                                &[47.0, 48.0, 49.0],
+                                &[10.0, 12.0, 14.0, 15.0, 16.0, 17.0],
+                            )
+                        } else {
+                            (
+                                &[34.0, 35.0, 36.0, 37.0, 38.0],
+                                &[132.0, 134.0, 136.0, 138.0, 140.0],
+                            )
+                        };
+
+                    for &lat in grid_lats {
+                        let p1 = project_coords(lat, bbox.2, bbox, rect, self.map_pan, self.map_zoom);
+                        let p2 = project_coords(lat, bbox.3, bbox, rect, self.map_pan, self.map_zoom);
+                        painter.line_segment(
+                            [p1, p2],
+                            egui::Stroke::new(1.0, egui::Color32::from_rgb(25, 45, 75)),
+                        );
+                        if rect.contains(p1 + egui::vec2(10.0, 0.0)) {
+                            painter.text(
+                                p1 + egui::vec2(6.0, -10.0),
+                                egui::Align2::LEFT_BOTTOM,
+                                format!("{:.0}° N", lat),
+                                egui::FontId::proportional(11.0),
+                                egui::Color32::from_rgb(70, 115, 165),
+                            );
+                        }
+                    }
+
+                    for &lon in grid_lons {
+                        let p1 = project_coords(bbox.0, lon, bbox, rect, self.map_pan, self.map_zoom);
+                        let p2 = project_coords(bbox.1, lon, bbox, rect, self.map_pan, self.map_zoom);
+                        painter.line_segment(
+                            [p1, p2],
+                            egui::Stroke::new(1.0, egui::Color32::from_rgb(25, 45, 75)),
+                        );
+                        if rect.contains(p2 + egui::vec2(0.0, 10.0)) {
+                            painter.text(
+                                p2 + egui::vec2(4.0, 4.0),
+                                egui::Align2::LEFT_TOP,
+                                format!("{:.0}° E", lon),
+                                egui::FontId::proportional(11.0),
+                                egui::Color32::from_rgb(70, 115, 165),
+                            );
+                        }
+                    }
+
+                    // 3. Vector Landmass Coastlines / National Borders
+                    if self.selected_country_code == "AT" {
+                        // Austria national border
+                        let border_pts: Vec<egui::Pos2> = AUSTRIA_BORDER
+                            .iter()
+                            .map(|&(lat, lon)| {
+                                project_coords(lat, lon, bbox, rect, self.map_pan, self.map_zoom)
+                            })
+                            .collect();
+                        for w in border_pts.windows(2) {
+                            painter.line_segment(
+                                [w[0], w[1]],
+                                egui::Stroke::new(2.5, egui::Color32::from_rgb(60, 120, 185)),
+                            );
+                        }
+
+                        // Danube River (Blue-Cyan glowing waterway)
+                        let danube_pts: Vec<egui::Pos2> = AUSTRIA_DANUBE
+                            .iter()
+                            .map(|&(lat, lon)| {
+                                project_coords(lat, lon, bbox, rect, self.map_pan, self.map_zoom)
+                            })
+                            .collect();
+                        for w in danube_pts.windows(2) {
+                            // Outer glow
+                            painter.line_segment(
+                                [w[0], w[1]],
+                                egui::Stroke::new(
+                                    6.0,
+                                    egui::Color32::from_rgba_unmultiplied(65, 165, 245, 50),
+                                ),
+                            );
+                            // River core
+                            painter.line_segment(
+                                [w[0], w[1]],
+                                egui::Stroke::new(3.5, egui::Color32::from_rgb(65, 165, 245)),
+                            );
+                        }
+
+                        // High Alpine Spine
+                        let alpine_pts: Vec<egui::Pos2> = AUSTRIA_ALPINE_SPINE
+                            .iter()
+                            .map(|&(lat, lon)| {
+                                project_coords(lat, lon, bbox, rect, self.map_pan, self.map_zoom)
+                            })
+                            .collect();
+                        for w in alpine_pts.windows(2) {
+                            painter.line_segment(
+                                [w[0], w[1]],
+                                egui::Stroke::new(2.0, egui::Color32::from_rgb(180, 215, 245)),
+                            );
+                        }
+                    } else {
+                        // Japan Honshu coastline
+                        let honshu_pts: Vec<egui::Pos2> = JAPAN_HONSHU
+                            .iter()
+                            .map(|&(lat, lon)| {
+                                project_coords(lat, lon, bbox, rect, self.map_pan, self.map_zoom)
+                            })
+                            .collect();
+                        for w in honshu_pts.windows(2) {
+                            painter.line_segment(
+                                [w[0], w[1]],
+                                egui::Stroke::new(2.5, egui::Color32::from_rgb(55, 115, 180)),
+                            );
+                        }
+
+                        // Lake Biwa
+                        let biwa_pts: Vec<egui::Pos2> = JAPAN_LAKE_BIWA
+                            .iter()
+                            .map(|&(lat, lon)| {
+                                project_coords(lat, lon, bbox, rect, self.map_pan, self.map_zoom)
+                            })
+                            .collect();
+                        for w in biwa_pts.windows(2) {
+                            painter.line_segment(
+                                [w[0], w[1]],
+                                egui::Stroke::new(2.5, egui::Color32::from_rgb(70, 190, 240)),
+                            );
+                        }
+                    }
+
+                    // 4. Historical Route Trails (Golden glowing path connecting waypoints)
+                    let wp_pts: Vec<egui::Pos2> = wps
+                        .iter()
+                        .map(|w| {
+                            project_coords(
+                                w.lat,
+                                w.lon,
+                                bbox,
+                                rect,
+                                self.map_pan,
+                                self.map_zoom,
+                            )
+                        })
+                        .collect();
+                    for w in wp_pts.windows(2) {
+                        // Ambient glow track
+                        painter.line_segment(
+                            [w[0], w[1]],
+                            egui::Stroke::new(
+                                7.0,
+                                egui::Color32::from_rgba_unmultiplied(255, 205, 105, 55),
+                            ),
+                        );
+                        // Core golden trail
+                        painter.line_segment([w[0], w[1]], egui::Stroke::new(2.5, GOLD));
+                    }
+
+                    // 5. Culture & Gastronomy Pins (from Sovereign Knowledge Tree)
+                    for item in &tree_items {
+                        if let (Some(lat), Some(lon)) = (item.lat, item.lon) {
+                            let p = project_coords(
+                                lat,
+                                lon,
+                                bbox,
+                                rect,
+                                self.map_pan,
+                                self.map_zoom,
+                            );
+                            if rect.contains(p) {
+                                let is_sel =
+                                    self.selected_info_item_id.as_deref() == Some(&item.id);
+                                let r = if is_sel { 8.5 } else { 5.5 };
+                                painter.circle_filled(
+                                    p,
+                                    r + 4.0,
+                                    egui::Color32::from_rgba_unmultiplied(130, 245, 210, 60),
+                                );
+                                painter.circle_filled(
+                                    p,
+                                    r,
+                                    if is_sel { GOLD } else { TEAL },
+                                );
+                                painter.circle_stroke(
+                                    p,
+                                    r,
+                                    egui::Stroke::new(1.5, egui::Color32::BLACK),
+                                );
+
+                                if is_sel || self.map_zoom > 1.8 {
+                                    let pin_label = format!("• {}", item.title);
+                                    let font = egui::FontId::proportional(11.5);
+                                    let galley = painter.layout_no_wrap(
+                                        pin_label,
+                                        font,
+                                        egui::Color32::WHITE,
+                                    );
+                                    let l_pos = p + egui::vec2(0.0, -18.0);
+                                    let l_rect = egui::Rect::from_center_size(
+                                        l_pos,
+                                        galley.size() + egui::vec2(8.0, 4.0),
+                                    );
+                                    painter.rect_filled(
+                                        l_rect,
+                                        3.0,
+                                        egui::Color32::from_rgb(12, 22, 28),
+                                    );
+                                    painter.rect_stroke(
+                                        l_rect,
+                                        3.0,
+                                        egui::Stroke::new(1.0, TEAL),
+                                        egui::StrokeKind::Inside,
+                                    );
+                                    painter.galley(
+                                        l_rect.min + egui::vec2(4.0, 2.0),
+                                        galley,
+                                        egui::Color32::WHITE,
+                                    );
+                                }
+                            }
+                        }
+                    }
+
+                    // 6. Chrono Waypoint Markers
+                    for w in &wps {
+                        let p = project_coords(
+                            w.lat,
+                            w.lon,
+                            bbox,
+                            rect,
+                            self.map_pan,
+                            self.map_zoom,
+                        );
+                        if !rect.contains(p) {
+                            continue;
+                        }
+                        let selected = self.selected_waypoint_id.as_deref() == Some(&w.id);
+                        let r = if selected { 13.0 } else { 8.5 };
+
+                        // Outer halo
+                        painter.circle_filled(
+                            p,
+                            r + 7.0,
+                            egui::Color32::from_rgba_unmultiplied(255, 205, 105, 75),
+                        );
+                        // Core circle
+                        painter.circle_filled(p, r, if selected { GOLD } else { ROSE });
+                        painter.circle_stroke(
+                            p,
+                            r,
+                            egui::Stroke::new(2.5, egui::Color32::WHITE),
+                        );
+
+                        // Capsule badge: [Year AD] Name
+                        let badge_text = format!("[{} AD] {}", w.year_ad, w.name);
+                        let font = egui::FontId::proportional(13.0);
+                        let galley = painter.layout_no_wrap(
+                            badge_text,
+                            font,
+                            egui::Color32::WHITE,
+                        );
+                        let label_pos = p + egui::vec2(0.0, 22.0);
+                        let label_rect = egui::Rect::from_center_size(
+                            label_pos,
+                            galley.size() + egui::vec2(10.0, 6.0),
+                        );
+                        painter.rect_filled(
+                            label_rect,
+                            4.0,
+                            egui::Color32::from_rgb(8, 12, 22),
+                        );
+                        painter.rect_stroke(
+                            label_rect,
+                            4.0,
+                            egui::Stroke::new(
+                                1.5,
+                                if selected { GOLD } else { LINE_BRIGHT },
+                            ),
+                            egui::StrokeKind::Inside,
+                        );
+                        painter.galley(
+                            label_rect.min + egui::vec2(5.0, 3.0),
+                            galley,
+                            egui::Color32::WHITE,
+                        );
+                    }
+
+                    // 7. Live Cursor Coordinates & Proximity HUD
+                    if let Some(pos) = response.hover_pos() {
+                        let (clat, clon) =
+                            screen_to_lat_lon(pos, bbox, rect, self.map_pan, self.map_zoom);
+
+                        // Find nearest waypoint or intel within hover range
+                        let mut proximity_hint: Option<String> = None;
+                        for w in &wps {
+                            let p = project_coords(
+                                w.lat,
+                                w.lon,
+                                bbox,
+                                rect,
+                                self.map_pan,
+                                self.map_zoom,
+                            );
+                            if (p - pos).length() < 30.0 {
+                                proximity_hint =
+                                    Some(format!("📌 {} ({})", w.name, w.region));
+                                break;
+                            }
+                        }
+                        if proximity_hint.is_none() {
+                            for item in &tree_items {
+                                if let (Some(lat), Some(lon)) = (item.lat, item.lon) {
+                                    let p = project_coords(
+                                        lat,
+                                        lon,
+                                        bbox,
+                                        rect,
+                                        self.map_pan,
+                                        self.map_zoom,
+                                    );
+                                    if (p - pos).length() < 24.0 {
+                                        proximity_hint =
+                                            Some(format!("🍽️ {}", item.title));
+                                        break;
+                                    }
                                 }
                             }
                         }
 
-                        let painter = ui.painter();
-                        painter.rect_filled(rect, 6.0, egui::Color32::BLACK);
+                        let hud_text = if let Some(hint) = proximity_hint {
+                            format!("🌐 Lat: {:.4}° N | Lon: {:.4}° E  |  {}", clat, clon, hint)
+                        } else {
+                            format!("🌐 Lat: {:.4}° N | Lon: {:.4}° E", clat, clon)
+                        };
+
+                        let hud_font = egui::FontId::proportional(13.0);
+                        let galley = painter.layout_no_wrap(hud_text, hud_font, GOLD);
+                        let hud_rect = egui::Rect::from_min_size(
+                            rect.min + egui::vec2(12.0, 12.0),
+                            galley.size() + egui::vec2(16.0, 8.0),
+                        );
+                        painter.rect_filled(
+                            hud_rect,
+                            5.0,
+                            egui::Color32::from_rgba_unmultiplied(6, 12, 24, 230),
+                        );
                         painter.rect_stroke(
-                            rect,
-                            6.0,
-                            egui::Stroke::new(3.0, GOLD),
+                            hud_rect,
+                            5.0,
+                            egui::Stroke::new(1.5, GOLD),
                             egui::StrokeKind::Inside,
                         );
-                        // Grid (scales with zoom for depth cue).
-                        let step = 34.0 * self.map_zoom;
-                        let mut x = rect.min.x + self.map_pan.x.rem_euclid(step);
-                        while x < rect.max.x {
-                            painter.line_segment(
-                                [egui::pos2(x, rect.min.y), egui::pos2(x, rect.max.y)],
-                                egui::Stroke::new(1.5, LINE_BRIGHT),
-                            );
-                            x += step;
-                        }
-                        let mut y = rect.min.y + self.map_pan.y.rem_euclid(step);
-                        while y < rect.max.y {
-                            painter.line_segment(
-                                [egui::pos2(rect.min.x, y), egui::pos2(rect.max.x, y)],
-                                egui::Stroke::new(1.5, LINE_BRIGHT),
-                            );
-                            y += step;
-                        }
-                        for (i, w) in wps.iter().enumerate() {
-                            let p = marker_pos(rect, self.map_pan, self.map_zoom, wps.len(), i);
-                            if !rect.contains(p) {
-                                continue;
-                            }
-                            let selected = self.selected_waypoint_id.as_deref() == Some(&w.id);
-                            let r = if selected { 13.0 } else { 9.0 };
-                            painter.circle_filled(
-                                p,
-                                r + 6.0,
-                                egui::Color32::from_rgba_unmultiplied(255, 205, 105, 70),
-                            );
-                            painter.circle_filled(
-                                p,
-                                r,
-                                if selected { GOLD } else { ROSE },
-                            );
-                            painter.circle_stroke(
-                                p,
-                                r,
-                                egui::Stroke::new(3.0, egui::Color32::WHITE),
-                            );
-                            // Label with solid black backing so white text always reads.
-                            let font = egui::FontId::proportional(15.0);
-                            let galley = painter.layout_no_wrap(
-                                w.name.clone(),
-                                font,
-                                egui::Color32::WHITE,
-                            );
-                            let label_rect = egui::Rect::from_center_size(
-                                p + egui::vec2(0.0, 24.0),
-                                galley.size() + egui::vec2(12.0, 8.0),
-                            );
-                            painter.rect_filled(label_rect, 4.0, egui::Color32::BLACK);
-                            painter.rect_stroke(
-                                label_rect,
-                                4.0,
-                                egui::Stroke::new(
-                                    1.5,
-                                    if selected { GOLD } else { LINE_BRIGHT },
-                                ),
-                                egui::StrokeKind::Inside,
-                            );
-                            painter.text(
-                                p + egui::vec2(0.0, 24.0),
-                                egui::Align2::CENTER_CENTER,
-                                w.name.clone(),
-                                egui::FontId::proportional(15.0),
-                                egui::Color32::WHITE,
-                            );
-                        }
-                        ui.add_space(6.0);
-                        body_text(ui, "Tip: Stephansdom 48.2085/16.3738 - KHM 48.2039/16.3619 - Fushimi Inari 34.9671/135.7727.");
+                        painter.galley(
+                            hud_rect.min + egui::vec2(8.0, 4.0),
+                            galley,
+                            GOLD,
+                        );
                     }
+
+                    // 8. Projection Legend badge (Top-Right)
+                    let legend_text = "🗺️ WGS84 Mercator Vector Cartography | Sovereign Baedeker 2030";
+                    let l_font = egui::FontId::proportional(11.5);
+                    let l_galley = painter.layout_no_wrap(
+                        legend_text.to_string(),
+                        l_font,
+                        MIST,
+                    );
+                    let l_rect = egui::Rect::from_min_size(
+                        egui::pos2(
+                            rect.max.x - l_galley.size().x - 24.0,
+                            rect.min.y + 12.0,
+                        ),
+                        l_galley.size() + egui::vec2(12.0, 6.0),
+                    );
+                    painter.rect_filled(
+                        l_rect,
+                        4.0,
+                        egui::Color32::from_rgba_unmultiplied(6, 12, 24, 210),
+                    );
+                    painter.rect_stroke(
+                        l_rect,
+                        4.0,
+                        egui::Stroke::new(1.0, LINE_BRIGHT),
+                        egui::StrokeKind::Inside,
+                    );
+                    painter.galley(
+                        l_rect.min + egui::vec2(6.0, 3.0),
+                        l_galley,
+                        MIST,
+                    );
+
+                    ui.add_space(4.0);
+                    body_text(
+                        ui,
+                        "Cartography Guide: Gold markers = Chrono-Waypoints | Teal pins = Vienna Dining, Cafés & Shrines | Gold trail = Historical Tokaido & Danube corridors.",
+                    );
                 }
 
                 ActiveViewTab::WaypointDetail => {
-                    big_heading(ui, "Historical Dossier");
-                    if let Some(wp) = self.current_waypoint() {
+                    if let Some(item_id) = self.selected_info_item_id.as_deref() {
+                        if let Some(item) = travelcraft_baedeker::BaedekerCatalog::find_tree_item(
+                            &self.selected_country_code,
+                            item_id,
+                        ) {
+                            big_heading(ui, "Sovereign Knowledge Intel");
+                            egui::ScrollArea::vertical().show(ui, |ui| {
+                                ui.group(|ui| {
+                                    ui.label(
+                                        egui::RichText::new(&item.title)
+                                            .size(23.0)
+                                            .strong()
+                                            .color(GOLD),
+                                    );
+                                    ui.label(
+                                        egui::RichText::new(&item.subtitle)
+                                            .size(15.0)
+                                            .color(MIST),
+                                    );
+
+                                    if !item.tags.is_empty() {
+                                        ui.horizontal_wrapped(|ui| {
+                                            for tag in &item.tags {
+                                                ui.label(
+                                                    egui::RichText::new(format!("#{tag}"))
+                                                        .size(13.0)
+                                                        .color(TEAL),
+                                                );
+                                            }
+                                        });
+                                    }
+
+                                    if let (Some(lat), Some(lon)) = (item.lat, item.lon) {
+                                        ui.horizontal(|ui| {
+                                            ui.label(
+                                                egui::RichText::new(format!(
+                                                    "📍 GPS: {:.4}° N, {:.4}° E",
+                                                    lat, lon
+                                                ))
+                                                .size(14.0)
+                                                .color(ROSE),
+                                            );
+                                            if ui.button("Show on Chrono-Map").clicked() {
+                                                self.active_tab = ActiveViewTab::ChronoMap;
+                                                self.status_msg =
+                                                    format!("Viewing {} on map", item.title);
+                                            }
+                                        });
+                                    }
+
+                                    ui.separator();
+                                    body_text(ui, &item.body);
+
+                                    if !item.practical_tips.is_empty() {
+                                        ui.add_space(10.0);
+                                        ui.label(
+                                            egui::RichText::new("Practical Insider Tips")
+                                                .size(17.0)
+                                                .strong()
+                                                .color(TEAL),
+                                        );
+                                        for tip in &item.practical_tips {
+                                            body_text(ui, &format!("✓ {tip}"));
+                                        }
+                                    }
+                                });
+                            });
+                        }
+                    } else if let Some(wp) = self.current_waypoint() {
+                        big_heading(ui, "Historical Dossier");
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             ui.group(|ui| {
-                                ui.label(egui::RichText::new(&wp.name).size(23.0).strong().color(GOLD));
-                                ui.label(egui::RichText::new(format!("{} | {} AD | {:.4}, {:.4}", wp.region, wp.year_ad, wp.lat, wp.lon)).size(16.0).color(MIST));
+                                ui.label(
+                                    egui::RichText::new(&wp.name)
+                                        .size(23.0)
+                                        .strong()
+                                        .color(GOLD),
+                                );
+                                ui.label(
+                                    egui::RichText::new(format!(
+                                        "{} | {} AD | {:.4}° N, {:.4}° E",
+                                        wp.region, wp.year_ad, wp.lat, wp.lon
+                                    ))
+                                    .size(16.0)
+                                    .color(MIST),
+                                );
+                                ui.horizontal(|ui| {
+                                    if ui.button("Show on Chrono-Map").clicked() {
+                                        self.active_tab = ActiveViewTab::ChronoMap;
+                                        self.status_msg =
+                                            format!("Viewing {} on map", wp.name);
+                                    }
+                                });
                                 ui.separator();
                                 body_text(ui, &wp.historic_narrative);
                                 ui.add_space(8.0);
-                                ui.label(egui::RichText::new("Visitor info").size(18.0).strong().color(TEAL));
+                                ui.label(
+                                    egui::RichText::new("Visitor info")
+                                        .size(18.0)
+                                        .strong()
+                                        .color(TEAL),
+                                );
                                 body_text(ui, &wp.visitor_info);
                                 ui.add_space(8.0);
-                                ui.label(egui::RichText::new("Culinary heritage").size(18.0).strong().color(TEAL));
+                                ui.label(
+                                    egui::RichText::new("Culinary heritage")
+                                        .size(18.0)
+                                        .strong()
+                                        .color(TEAL),
+                                );
                                 for dish in &wp.culinary_specialty {
                                     body_text(ui, &format!("- {dish}"));
                                 }
@@ -1167,29 +1722,217 @@ impl eframe::App for TravelCraftApp {
     }
 }
 
-/// Marker layout: spread waypoints across the map rect, scaled by zoom + pan.
-fn marker_pos(rect: egui::Rect, pan: egui::Vec2, zoom: f32, n: usize, i: usize) -> egui::Pos2 {
-    let cols = (n as f32).sqrt().ceil() as usize;
-    let cols = cols.max(1);
-    let col = (i % cols) as f32;
-    let row = (i / cols) as f32;
-    let rows = n.div_ceil(cols) as f32;
-    let fx = if cols <= 1 {
-        0.5
+// --- Chrono-Cartographic Vector Geometries (WGS84) -----------------------
+
+/// Coastline polyline for Honshu (Japan).
+const JAPAN_HONSHU: &[(f64, f64)] = &[
+    (35.0, 139.8), // Boso Peninsula South
+    (35.7, 140.8), // Choshi / Inubosaki
+    (36.4, 140.6), // Ibaraki Coast
+    (37.0, 141.0), // Fukushima Coast
+    (38.3, 141.0), // Sendai Bay
+    (40.5, 141.5), // Hachinohe
+    (41.5, 140.9), // Shimokita Peninsula
+    (41.2, 140.3), // Tsugaru Peninsula
+    (40.0, 139.9), // Oga Peninsula / Akita
+    (38.9, 139.8), // Sakata
+    (37.9, 139.0), // Niigata
+    (37.0, 138.2), // Joetsu
+    (36.8, 137.1), // Toyama Bay
+    (37.5, 137.3), // Noto Peninsula Tip (Suzu)
+    (37.4, 136.9), // Wajima
+    (36.6, 136.6), // Kanazawa
+    (36.0, 136.0), // Fukui / Echizen
+    (35.5, 135.5), // Wakasa Bay / Maizuru
+    (35.5, 134.2), // Tottori Coast
+    (35.5, 133.0), // Matsue / Shimane
+    (34.7, 131.2), // Hagi
+    (34.0, 130.9), // Shimonoseki / Kanmon Strait
+    (34.0, 131.8), // Yamaguchi Sanyo Coast
+    (34.3, 132.4), // Hiroshima Bay
+    (34.4, 133.4), // Fukuyama
+    (34.6, 133.9), // Okayama / Seto Inland Sea
+    (34.7, 134.7), // Himeji Coast
+    (34.7, 135.2), // Kobe Port
+    (34.6, 135.4), // Osaka Bay
+    (34.3, 135.1), // Wakayama
+    (33.7, 135.3), // Shirahama
+    (33.4, 135.8), // Kushimoto / Shionomisaki (Southernmost Honshu)
+    (33.8, 136.1), // Kumano
+    (34.5, 136.8), // Ise / Shima Peninsula
+    (35.0, 136.9), // Nagoya / Ise Bay
+    (34.7, 137.4), // Toyohashi / Atsumi Peninsula
+    (34.6, 138.2), // Omaezaki
+    (35.0, 138.5), // Shizuoka / Suruga Bay
+    (34.6, 138.9), // Izu Peninsula (Shimoda)
+    (35.1, 139.1), // Sagami Bay / Odawara
+    (35.3, 139.5), // Kamakura / Enoshima
+    (35.4, 139.6), // Yokohama
+    (35.6, 139.8), // Tokyo Port / Nihonbashi
+    (35.3, 139.9), // Kisarazu
+    (35.0, 139.8), // Close loop to Boso
+];
+
+/// Outline of Lake Biwa (Kyoto/Shiga, Japan).
+const JAPAN_LAKE_BIWA: &[(f64, f64)] = &[
+    (35.1, 135.9),
+    (35.3, 136.1),
+    (35.5, 136.2),
+    (35.4, 136.1),
+    (35.2, 136.0),
+    (35.0, 135.9),
+    (35.1, 135.9),
+];
+
+/// National border polygon of Austria.
+const AUSTRIA_BORDER: &[(f64, f64)] = &[
+    (47.5, 9.7),   // Bregenz / Lake Constance
+    (47.1, 10.2),  // Arlberg
+    (46.9, 10.5),  // Nauders (Three borders CH/IT/AT)
+    (46.8, 11.0),  // Oetztal Alps
+    (47.0, 11.5),  // Brenner Pass
+    (47.0, 12.1),  // Zillertal Alps
+    (47.1, 12.8),  // Grossglockner / Hohe Tauern
+    (46.6, 12.9),  // Carnic Alps
+    (46.5, 13.7),  // Karawanks / Arnoldstein
+    (46.5, 14.5),  // Loibl Pass
+    (46.7, 15.3),  // South Styria wine hills
+    (46.8, 16.0),  // Bad Radkersburg
+    (47.2, 16.5),  // South Burgenland
+    (47.7, 16.8),  // Neusiedler See / Eisenstadt
+    (48.0, 17.1),  // Kittsee / Bratislava border
+    (48.2, 17.0),  // March river confluence / Hainburg
+    (48.6, 16.9),  // Hohenau / March-Thaya
+    (48.8, 16.4),  // Laa an der Thaya
+    (48.9, 15.3),  // Waldviertel (Gmuend)
+    (48.6, 14.9),  // Freistadt
+    (48.7, 13.8),  // Dreilaendereck AT/CZ/DE (Bohmerwald)
+    (48.5, 13.5),  // Passau (Inn / Danube)
+    (48.2, 13.0),  // Braunau am Inn
+    (47.8, 13.0),  // Salzburg basin
+    (47.6, 12.9),  // Berchtesgaden notch
+    (47.6, 12.4),  // Lofer / Steinberge
+    (47.6, 12.2),  // Kufstein
+    (47.5, 11.3),  // Karwendel
+    (47.4, 10.7),  // Reutte / Fernpass
+    (47.5, 9.7),   // Back to Bregenz
+];
+
+/// Danube River (Donau) vector polyline through Austria.
+const AUSTRIA_DANUBE: &[(f64, f64)] = &[
+    (48.56, 13.43), // Passau
+    (48.45, 13.85), // Schlogener Schlinge
+    (48.30, 14.28), // Linz
+    (48.22, 14.52), // Enns
+    (48.19, 14.90), // Ybbs an der Donau
+    (48.2297, 15.3319), // Melk Abbey
+    (48.36, 15.42), // Spitz an der Donau
+    (48.39, 15.52), // Duernstein Ruin
+    (48.41, 15.61), // Krems an der Donau
+    (48.33, 16.05), // Tulln
+    (48.30, 16.31), // Klosterneuburg
+    (48.21, 16.39), // Vienna (Donaukanal / Stephansdom)
+    (48.14, 16.94), // Hainburg an der Donau
+];
+
+/// High Alpine Spine across Austria.
+const AUSTRIA_ALPINE_SPINE: &[(f64, f64)] = &[
+    (47.1, 10.3),   // Arlberg
+    (47.0, 11.5),   // Brenner
+    (47.07, 12.69), // Grossglockner (3,798m)
+    (47.48, 13.61), // Dachstein Massif (2,995m)
+    (47.60, 14.45), // Gesaeuse
+    (47.70, 15.30), // Hochschwab
+    (47.76, 15.80), // Rax / Schneeberg
+];
+
+/// Exact WGS84 Mercator projection from (lat, lon) to screen pos2.
+fn project_coords(
+    lat: f64,
+    lon: f64,
+    bbox: (f64, f64, f64, f64),
+    rect: egui::Rect,
+    pan: egui::Vec2,
+    zoom: f32,
+) -> egui::Pos2 {
+    let (min_lat, max_lat, min_lon, max_lon) = bbox;
+    let u = ((lon - min_lon) / (max_lon - min_lon)).clamp(-0.5, 1.5);
+
+    let lat_rad = lat.to_radians();
+    let min_lat_rad = min_lat.to_radians();
+    let max_lat_rad = max_lat.to_radians();
+    let merc = (lat_rad * 0.5 + std::f64::consts::FRAC_PI_4).tan().ln();
+    let merc_min = (min_lat_rad * 0.5 + std::f64::consts::FRAC_PI_4).tan().ln();
+    let merc_max = (max_lat_rad * 0.5 + std::f64::consts::FRAC_PI_4).tan().ln();
+    let v = 1.0 - ((merc - merc_min) / (merc_max - merc_min)).clamp(-0.5, 1.5);
+
+    let mid_lat_rad = ((min_lat + max_lat) * 0.5).to_radians();
+    let map_w = (max_lon - min_lon) * mid_lat_rad.cos();
+    let map_h = max_lat - min_lat;
+    let aspect = (map_w / map_h) as f32;
+
+    let rect_aspect = rect.width() / rect.height();
+    let (draw_w, draw_h) = if rect_aspect > aspect {
+        (rect.height() * aspect, rect.height())
     } else {
-        0.12 + 0.76 * (col / (cols as f32 - 1.0))
+        (rect.width(), rect.width() / aspect)
     };
-    let fy = if rows <= 1.0 {
-        0.5
-    } else {
-        0.15 + 0.70 * (row / (rows - 1.0))
-    };
-    let base = egui::pos2(
-        rect.min.x + fx * rect.width(),
-        rect.min.y + fy * rect.height(),
-    );
+
+    let offset_x = rect.min.x + (rect.width() - draw_w) * 0.5;
+    let offset_y = rect.min.y + (rect.height() - draw_h) * 0.5;
+
+    let base_x = offset_x + (u as f32) * draw_w;
+    let base_y = offset_y + (v as f32) * draw_h;
+
     let center = rect.center();
-    center + (base - center) * zoom + pan
+    egui::pos2(
+        center.x + (base_x - center.x) * zoom + pan.x,
+        center.y + (base_y - center.y) * zoom + pan.y,
+    )
+}
+
+/// Inverse Mercator projection from screen pos2 to (lat, lon).
+fn screen_to_lat_lon(
+    pos: egui::Pos2,
+    bbox: (f64, f64, f64, f64),
+    rect: egui::Rect,
+    pan: egui::Vec2,
+    zoom: f32,
+) -> (f64, f64) {
+    let (min_lat, max_lat, min_lon, max_lon) = bbox;
+    let center = rect.center();
+    let unscaled_x = (pos.x - center.x - pan.x) / zoom + center.x;
+    let unscaled_y = (pos.y - center.y - pan.y) / zoom + center.y;
+
+    let mid_lat_rad = ((min_lat + max_lat) * 0.5).to_radians();
+    let map_w = (max_lon - min_lon) * mid_lat_rad.cos();
+    let map_h = max_lat - min_lat;
+    let aspect = (map_w / map_h) as f32;
+
+    let rect_aspect = rect.width() / rect.height();
+    let (draw_w, draw_h) = if rect_aspect > aspect {
+        (rect.height() * aspect, rect.height())
+    } else {
+        (rect.width(), rect.width() / aspect)
+    };
+
+    let offset_x = rect.min.x + (rect.width() - draw_w) * 0.5;
+    let offset_y = rect.min.y + (rect.height() - draw_h) * 0.5;
+
+    let u = ((unscaled_x - offset_x) / draw_w) as f64;
+    let v = ((unscaled_y - offset_y) / draw_h) as f64;
+
+    let lon = min_lon + u * (max_lon - min_lon);
+
+    let min_lat_rad = min_lat.to_radians();
+    let max_lat_rad = max_lat.to_radians();
+    let merc_min = (min_lat_rad * 0.5 + std::f64::consts::FRAC_PI_4).tan().ln();
+    let merc_max = (max_lat_rad * 0.5 + std::f64::consts::FRAC_PI_4).tan().ln();
+    let merc = merc_min + (1.0 - v) * (merc_max - merc_min);
+    let lat_rad = 2.0 * (merc.exp().atan() - std::f64::consts::FRAC_PI_4);
+    let lat = lat_rad.to_degrees();
+
+    (lat, lon)
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
