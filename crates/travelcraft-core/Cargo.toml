@@ -7,6 +7,7 @@ authors.workspace = true
 
 [dependencies]
 travelcraft-baedeker = { path = "../travelcraft-baedeker" }
+qgiscraft-core.workspace = true
 databasecraft-store.workspace = true
 databasecraft-core.workspace = true
 serde.workspace = true

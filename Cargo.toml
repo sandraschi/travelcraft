@@ -25,3 +25,4 @@ clap = { version = "4.5", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
 databasecraft-store = { path = "../databasecraft/crates/databasecraft-store" }
 databasecraft-core = { path = "../databasecraft/crates/databasecraft-core" }
+qgiscraft-core = { path = "../qgiscraft/crates/qgiscraft-core" }

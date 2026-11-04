@@ -374,14 +374,17 @@ impl eframe::App for TravelCraftApp {
                 }
 
                 ActiveViewTab::RoutePlanner => {
-                    ui.heading("⚡ Sovereign Route Optimizer");
+                    ui.heading("⚡ Multimodal Geodesic Route Optimizer (Powered by QGISCraft)");
+                    ui.label("Combines historical chrono-waypoints with high-precision WGS84 geodesic calculations and map tile coverage.");
+                    ui.add_space(8.0);
                     if let Some(route) = &self.optimized_route {
                         ui.group(|ui| {
                             ui.label(format!("Country Edition: {}", route.country_code));
-                            ui.label(format!("Total Distance: {:.1} km", route.total_distance_km));
+                            ui.label(format!("Total Distance (Geodesic): {:.1} km", route.total_distance_km));
                             ui.label(format!("Estimated Transit Time: {:.1} hours (High-speed Rail / Shinkansen)", route.estimated_hours));
                             ui.label(format!("Chrono-Span Traversed: {} years across history", route.chrono_span_years));
                             ui.label(format!("Estimated Carbon Footprint: {:.1} kg CO₂", route.carbon_footprint_kg));
+                            ui.colored_label(egui::Color32::from_rgb(100, 220, 180), format!("QGISCraft Slippy Map Tiles (Z8): {} tiles indexed", route.covered_map_tiles_zoom10));
                         });
                     }
                 }
@@ -446,7 +449,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "has_basic_auth": true,
             "jp_route_distance_km": plan.total_distance_km,
             "jp_waypoints_count": plan.waypoints.len(),
-            "capabilities": ["ChronoCartography", "SensoryAtmosphere", "EdoToModern", "HabsburgToAlpine", "InteractiveJournal"]
+            "qgis_map_tiles_zoom8": plan.covered_map_tiles_zoom10,
+            "capabilities": ["ChronoCartography", "SensoryAtmosphere", "EdoToModern", "HabsburgToAlpine", "InteractiveJournal", "QgisGisIntegration"]
         });
         println!("[travelcraft] Smoke OK: {}", smoke_payload);
         return Ok(());

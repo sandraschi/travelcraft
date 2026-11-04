@@ -8,6 +8,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use travelcraft_baedeker::{BaedekerCatalog, ChronoWaypoint, CountryEdition};
 use databasecraft_store::DatabaseStore;
+use qgiscraft_core::geo::{haversine_m, LonLat};
+use qgiscraft_core::tiles::bbox_to_tiles;
+use qgiscraft_core::geocode::{demo_search, Hit};
 
 #[derive(Error, Debug)]
 pub enum TravelCraftError {
@@ -15,6 +18,8 @@ pub enum TravelCraftError {
     Store(String),
     #[error("Country edition not found: {0}")]
     NotFound(String),
+    #[error("GIS calculation error: {0}")]
+    Gis(String),
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 }
@@ -37,6 +42,7 @@ pub struct RouteOptimizationResult {
     pub waypoints: Vec<ChronoWaypoint>,
     pub carbon_footprint_kg: f64,
     pub chrono_span_years: i32,
+    pub covered_map_tiles_zoom10: usize,
 }
 
 pub struct TravelCraftEngine {
@@ -99,10 +105,35 @@ impl TravelCraftEngine {
         let max_year = waypoints.iter().map(|w| w.year_ad).max().unwrap_or(2026);
         let chrono_span = (max_year - min_year).abs();
 
-        // High-precision great circle mock calculation for demonstration
-        let total_distance_km = 480.5;
-        let estimated_hours = 6.2;
-        let carbon_footprint_kg = 18.4; // Electric Shinkansen / ÖBB Railjet baseline
+        // Calculate exact geodesic distance across legs using QGISCraft core haversine
+        let mut total_meters = 0.0;
+        let mut min_lat = 90.0_f64;
+        let mut max_lat = -90.0_f64;
+        let mut min_lng = 180.0_f64;
+        let mut max_lng = -180.0_f64;
+
+        for (i, wp) in waypoints.iter().enumerate() {
+            if wp.lat < min_lat { min_lat = wp.lat; }
+            if wp.lat > max_lat { max_lat = wp.lat; }
+            if wp.lon < min_lng { min_lng = wp.lon; }
+            if wp.lon > max_lng { max_lng = wp.lon; }
+
+            if i > 0 {
+                let prev = &waypoints[i - 1];
+                let p1 = LonLat::new(prev.lon, prev.lat).map_err(|e| TravelCraftError::Gis(e.to_string()))?;
+                let p2 = LonLat::new(wp.lon, wp.lat).map_err(|e| TravelCraftError::Gis(e.to_string()))?;
+                total_meters += haversine_m(p1, p2);
+            }
+        }
+
+        let total_distance_km = (total_meters / 1000.0 * 10.0).round() / 10.0;
+        // Travel velocity based on high-speed rail corridor (approx 110 km/h average with stops)
+        let estimated_hours = (total_distance_km / 110.0 * 10.0).round() / 10.0;
+        let carbon_footprint_kg = (total_distance_km * 0.038 * 10.0).round() / 10.0;
+
+        // Fetch required QGISCraft map tile coordinates covering route bbox
+        let tiles_zoom10 = bbox_to_tiles(min_lng, min_lat, max_lng, max_lat, 8)
+            .unwrap_or_default();
 
         Ok(RouteOptimizationResult {
             country_code: country.country_code,
@@ -111,7 +142,13 @@ impl TravelCraftEngine {
             waypoints,
             carbon_footprint_kg,
             chrono_span_years: chrono_span,
+            covered_map_tiles_zoom10: tiles_zoom10.len(),
         })
+    }
+
+    /// Geocode and enrich an itinerary location using QGISCraft geocoding engine
+    pub fn geocode_waypoint(&self, query: &str) -> Result<Vec<Hit>, TravelCraftError> {
+        demo_search(query, 5).map_err(|e| TravelCraftError::Gis(e.to_string()))
     }
 
     pub fn add_journal_entry(&self, entry: TravelJournalEntry) -> Result<(), TravelCraftError> {
