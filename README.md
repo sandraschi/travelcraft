@@ -1,11 +1,11 @@
 # TravelCraft (Baedeker 2030)
 
-**TravelCraft** is an ArtCraft-tier chrono-cartography studio and sovereign travel guide platform that reinvents the classic 19th-century Baedeker guide for the 2030s.
+**TravelCraft** is an ArtCraft-tier chrono-cartography studio and local-first travel guide platform that reinvents the classic 19th-century Baedeker guide for the 2030s.
 
 Features:
 - **Chrono-Cartographic Layers**: Tokaido 1603 vs Neo-Tokyo; Hallstatt 800 BC vs Habsburg Vienna 1365.
 - **Sensory Atmosphere Profiles**: Acoustic, architectural, olfactory, light records per waypoint.
-- **Sovereign Local Storage**: Offline SQLite journal + GPS-tagged photos via `DatabaseCraft`.
+- **Local Storage**: Offline SQLite journal + GPS-tagged photos via `DatabaseCraft`.
 - **Stay-Length Itineraries**: 1/2/3/5/7/14-day Baedeker day-plans per edition (Itineraries tab, `travelcraft-cli itinerary AT 3`).
 - **SightLens Camera**: Point laptop at Stephansdom and click Identify, or load an Immich export. Offline GPS + hint matching (Stephansdom, KHM Caravaggio Rosenkranzmadonna, Klimt Kiss, Bruegel Tower) renders a beautiful dossier and logs it with GPS source.
 - **Sight Chat (text + voice)**: After identifying the Caravaggio, ask anything. Grounded in info blob + qgiscraft map blob + GTFS transit blob; online via Ollama `:11434` when reachable, else OFFLINE BLOB extractive answer. Voice out via Windows SAPI Speak or speech-mcp `:10909` TTS wav.

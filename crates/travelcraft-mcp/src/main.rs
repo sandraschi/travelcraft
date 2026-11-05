@@ -1,6 +1,6 @@
 //! TravelCraft MCP Server
 //!
-//! Exposes Baedeker 2030 chrono-cartography and sovereign route optimization
+//! Exposes Baedeker 2030 chrono-cartography and local route optimization
 //! as FastMCP JSON-RPC tools on port 14129.
 
 use serde_json::json;
@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let engine = Arc::new(TravelCraftEngine::new_in_memory()?);
     let countries = engine.list_countries();
     println!(
-        "[travelcraft-mcp] Loaded {} sovereign country editions.",
+        "[travelcraft-mcp] Loaded {} country editions.",
         countries.len()
     );
     let itin3 = engine.plan_itinerary("AT", 3)?;

@@ -4,7 +4,7 @@ use travelcraft_core::TravelCraftEngine;
 #[derive(Parser)]
 #[command(
     name = "travelcraft-cli",
-    about = "TravelCraft Sovereign Baedeker 2030 CLI"
+    about = "TravelCraft Local-First Baedeker 2030 CLI"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -13,7 +13,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// List available sovereign country editions
+    /// List available country editions
     Countries,
     /// Inspect country edition details (e.g. JP, AT)
     Inspect { country: String },
