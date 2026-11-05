@@ -61,6 +61,20 @@ cargo test --workspace
 - **iPhone as hotspot**: shares internet only, NOT GPS. Enter coords manually or import the Immich original (EXIF GPS preserved).
 - **Immich**: export original (not preview), paste path, source `immich-exif`.
 
+## Status — does today / next week / non-goals
+
+**Does today:** 4-crate Rust workspace (baedeker/core/mcp/app); Baedeker
+guide model (places, routes, itineraries); map app with fly-to, scale bar,
+regional intel; fleet i18n (7 locales); 11 test fns; CLI verbs via
+`travelcraft --help`.
+
+**Next week:** `docs/PRD.md` (model + verbs + qgiscraft boundary) plus
+`docs/TOOLS.md`; `just ci` (fmt + clippy-deny + test); first democraft
+recipe on fixtures.
+
+**Non-goals:** not a GIS analyzer (that's qgiscraft); no live-tile SLA —
+keyless OSM/Photon only.
+
 ## Lineage — the Storytold craft-app pattern
 
 Storytold ArtCraft ([storytold/artcraft](https://github.com/storytold/artcraft) — "the IDE for artists") was the starting point. The 16 craft apps in the Storytold stable each ship one binary that is both the human CLI and the agent MCP server (stdio), headless-first, with `run.json` + report artifacts. That modus operandi and harness is what this repo implements; the code here is independent, the pattern is shared.
