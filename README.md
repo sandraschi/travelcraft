@@ -19,11 +19,49 @@ Vendored offline sources (see `crates/travelcraft-baedeker/src/lib.rs SOURCES`):
 
 ---
 
+## Who uses this, and why not just open Google Maps
+
+Travelcraft is an offline, agent-native travel primer. The point is not a better map. It is that an agent in your IDE (Claude Desktop, Claude Code, Cursor, Zed, Antigravity, anything that speaks MCP) can plan, explain and keep a journal for a trip without a browser, an account, an API key or a network on the core path.
+
+| Who | Why not Google Maps | Typical prompt | Works today |
+|---|---|---|---|
+| Developer or power user with an agentic IDE | Stays in the tool, scriptable, no account, nothing leaves the machine | "Plan 3 days in Austria and put the stops in a table" | Yes, Austria and Japan only |
+| Traveller with bad signal (tunnels, Tyrol, flights) | Core data is compiled in, no network needed | "What is the story of Stephansdom? I have no signal" | Yes, small catalogue |
+| Culture and history traveller | Places are placed in time (chrono-waypoints), not just on a map | "What am I looking at at 48.2039, 16.3619?" | Yes, a handful of sights |
+| Japan first-timer | Curated primer (JR Pass, konbini, etiquette) instead of ten browser tabs | "Plan a Tokaido route through Japan" | Yes, some text is German |
+| Private journal keeper | Journal is a local SQLite file, survives crashes, never uploaded | "Log: Cafe Berg, rain, Melange, wet wool" | Yes |
+| Builder of craft apps | Small reference for the ArtCraft pattern (engine, CLI, MCP, egui) | read `docs/PRD.md` and `AGENTS.md` | Yes |
+
+### Prompts that work today
+
+| You say | Tool the agent calls | You get |
+|---|---|---|
+| "Which country editions are there?" | `travel_countries` | Austria and Japan editions |
+| "Plan 3 days in Austria" | `travel_itinerary` (AT, 3) | Day-by-day plan (1, 2, 3, 5, 7 or 14 days) |
+| "Best route through Japan, oldest sight first" | `travel_plan_route` (JP) | Chrono-ordered legs, distance, hours, carbon estimate |
+| "What am I looking at near Stephansplatz?" | `travel_identify_sight` | Sight dossier from the offline catalogue |
+| "How do I get to the Caravaggio in the KHM?" | `travel_sight_chat` | Grounded answer plus map and transit snapshot (not live departures) |
+| "I photographed the Klimt Kiss, log it" | `travel_sightlens_capture` | Identification plus a durable journal entry |
+| "Log: Cafe Berg, rain, Melange" | `travel_journal_add` | Saved entry id |
+| "Show my last 10 journal entries" | `travel_journal_list` | Entries, newest first |
+| "Coordinates for Wien" | `travel_geocode` | Demo geocoder hit (a handful of places only) |
+
+### Not built yet (do not expect these)
+
+| You say | Why it does not work today | What it would take |
+|---|---|---|
+| "Vienna bicycle repair shops near me" | No POI search. `travel_geocode` is a demo geocoder, not a place index | A `travel_nearby` tool over OpenStreetMap Overpass (`shop=bicycle`) using giscraft-core's fenced query builder; online, so it would be opt-in and labelled |
+| "Is it open now?", prices, booking | No opening-hours or booking data | Overpass `opening_hours` tags; booking is out of scope |
+| "Another country" | Only Austria and Japan editions exist | New editions in `travelcraft-baedeker` |
+| "Which painting is in this photo?" | Identification uses GPS plus a hint, not the image | An image model; not planned |
+| Contributing back to OpenStreetMap | Travelcraft reads OSM tiles, it does not edit OSM | A mapper workflow belongs in giscraft, not here |
+
+Journal, chat history and settings live in `%LOCALAPPDATA%\travelcraft\travelcraft.db` (override with `TRAVELCRAFT_DATA`).
 ## Workspace Structure
 
 1. `crates/travelcraft-baedeker`: Editions (`JapanCraft` 9 stops, `AustriaCraft` 8 stops), stay itineraries, SightLens identify DB (landmarks + KHM/Belvedere artworks).
-2. `crates/travelcraft-core`: Geodesic routing, itineraries, SightLens pipeline, DatabaseCraft journal with GPS columns.
-3. `crates/travelcraft-mcp`: FastMCP JSON-RPC server on port `14129`.
+2. `crates/travelcraft-core`: Geodesic routing, itineraries, SightLens pipeline, durable SQLite journal (GPS columns), chat history and settings.
+3. `crates/travelcraft-mcp`: MCP 2024-11-05 stdio server (12 tools, see `docs/TOOLS.md`). No port; hosts start the exe.
 4. `crates/travelcraft-app`: Native GUI (`eframe`/`egui`) + CLI (`travelcraft-cli`).
 
 ---
