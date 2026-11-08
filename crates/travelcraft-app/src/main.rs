@@ -59,14 +59,8 @@ pub struct TravelCraftApp {
     map_textures: HashMap<(u8, i64, i64), egui::TextureHandle>,
     map_pending: HashSet<(u8, i64, i64)>,
     map_failed: HashSet<(u8, i64, i64)>,
-    map_tx: std::sync::mpsc::Sender<(
-        qgiscraft_core::tiles::Tile,
-        Option<Vec<u8>>,
-    )>,
-    map_rx: std::sync::mpsc::Receiver<(
-        qgiscraft_core::tiles::Tile,
-        Option<Vec<u8>>,
-    )>,
+    map_tx: std::sync::mpsc::Sender<(giscraft_core::tiles::Tile, Option<Vec<u8>>)>,
+    map_rx: std::sync::mpsc::Receiver<(giscraft_core::tiles::Tile, Option<Vec<u8>>)>,
     map_note: String,
     map_zoom: f32,
     map_pan: egui::Vec2,
@@ -108,8 +102,24 @@ pub struct TravelCraftApp {
 
 impl TravelCraftApp {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let engine = TravelCraftEngine::new_in_memory()?;
+        let (engine, persist_note) = match TravelCraftEngine::open_default() {
+            Ok(e) => (e, None),
+            Err(err) => (
+                TravelCraftEngine::new_in_memory()?,
+                Some(format!(
+                    "Journal NOT persisted, database unavailable: {err}"
+                )),
+            ),
+        };
         let initial_plan = engine.plan_optimized_route("JP").ok();
+        let saved_model = engine.setting_get("chat_model").ok().flatten();
+        let dark = engine
+            .setting_get("theme")
+            .ok()
+            .flatten()
+            .is_none_or(|v| v != "light");
+        let chat_log = Self::load_chat(&engine);
+        let journal_log = engine.list_journal(500).unwrap_or_default();
         let itinerary = engine.plan_itinerary("JP", 3).ok();
         let (map_tx, map_rx) = std::sync::mpsc::channel();
 
@@ -120,7 +130,8 @@ impl TravelCraftApp {
             selected_info_item_id: None,
             tree_search_query: String::new(),
             active_tab: ActiveViewTab::ChronoMap,
-            status_msg: "Baedeker 2030 Chrono-Cartography Ready".to_string(),
+            status_msg: persist_note
+                .unwrap_or_else(|| "Baedeker 2030 Chrono-Cartography Ready".to_string()),
             optimized_route: initial_plan,
             map_z: 12,
             map_clng: 139.7745,
@@ -144,30 +155,15 @@ impl TravelCraftApp {
             sight_result: None,
             sight_error: String::new(),
             chat_input: String::new(),
-            chat_model: "qwen2.5:7b".to_string(),
+            chat_model: saved_model.unwrap_or_else(|| "qwen2.5:7b".to_string()),
             chat_online: true,
-            chat_log: vec![(
-                "guide".to_string(),
-                "Sight Chat ready. Identify a sight (e.g. caravaggio in the KHM), then ask anything - I answer from the info blob, map + transit context, or the local LLM when online.".to_string(),
-            )],
+            chat_log,
             chat_status: String::new(),
             new_reflection: String::new(),
             new_sensory_notes: String::new(),
-            journal_log: vec![
-                TravelJournalEntry {
-                    entry_id: "ENTRY-001".to_string(),
-                    waypoint_id: "jp_nihonbashi".to_string(),
-                    timestamp_epoch: 1793775000,
-                    user_reflection: "Crossed Nihonbashi bridge at dawn. The shadow of Tokugawa's wooden piers still echoes in the morning fog.".to_string(),
-                    sensory_notes: "Aroma of boiling dashi broth mixing with salty bay air.".to_string(),
-                    photo_uris: vec!["file:///nihonbashi_dawn.jpg".to_string()],
-                    photo_lat: Some(35.6840),
-                    photo_lon: Some(139.7745),
-                    photo_gps_source: Some("manual".to_string()),
-                }
-            ],
+            journal_log,
 
-            is_dark_theme: true,
+            is_dark_theme: dark,
             is_authenticated: false,
             auth_username: "traveler".to_string(),
             auth_password_input: String::new(),
@@ -176,6 +172,36 @@ impl TravelCraftApp {
         })
     }
 
+    fn load_chat(engine: &TravelCraftEngine) -> Vec<(String, String)> {
+        let log = engine.chat_recent(200).unwrap_or_default();
+        if log.is_empty() {
+            vec![(
+                "guide".to_string(),
+                "Sight Chat ready. Identify a sight (e.g. caravaggio in the KHM), then ask anything - I answer from the info blob, map + transit context, or the local LLM when online.".to_string(),
+            )]
+        } else {
+            log
+        }
+    }
+
+    fn reload_journal(&mut self) {
+        match self.engine.list_journal(500) {
+            Ok(list) => self.journal_log = list,
+            Err(e) => self.status_msg = format!("Journal reload failed: {e}"),
+        }
+    }
+
+    fn save_setting(&mut self, key: &str, value: &str) {
+        if let Err(e) = self.engine.setting_set(key, value) {
+            self.status_msg = format!("Could not save setting {key}: {e}");
+        }
+    }
+
+    fn toggle_theme(&mut self) {
+        self.is_dark_theme = !self.is_dark_theme;
+        let v = if self.is_dark_theme { "dark" } else { "light" };
+        self.save_setting("theme", v);
+    }
     fn current_country(&self) -> Option<CountryEdition> {
         self.engine.get_country(&self.selected_country_code).ok()
     }
@@ -255,18 +281,7 @@ impl TravelCraftApp {
             Ok(res) => {
                 self.sight_error.clear();
                 self.status_msg = format!("SightLens: {}", res.sight.name);
-                // Also mirror into journal log view.
-                self.journal_log.push(TravelJournalEntry {
-                    entry_id: res.journal_entry_id.clone(),
-                    waypoint_id: res.sight.id.clone(),
-                    timestamp_epoch: chrono::Utc::now().timestamp(),
-                    user_reflection: res.info_page_body.clone(),
-                    sensory_notes: res.sight.headline.clone(),
-                    photo_uris: vec![photo.to_string()],
-                    photo_lat: Some(lat),
-                    photo_lon: Some(lon),
-                    photo_gps_source: Some(self.sight_gps_source.clone()),
-                });
+                self.reload_journal();
                 self.sight_result = Some(res);
             }
             Err(e) => {
@@ -427,21 +442,11 @@ fn speech_mcp_tts_save(text: &str) -> String {
 }
 
 fn big_heading(ui: &mut egui::Ui, text: &str) {
-    ui.label(
-        egui::RichText::new(text)
-            .size(27.0)
-            .strong()
-            .color(PAPER),
-    );
+    ui.label(egui::RichText::new(text).size(27.0).strong().color(PAPER));
 }
 
 fn section_heading(ui: &mut egui::Ui, text: &str) {
-    ui.label(
-        egui::RichText::new(text)
-            .size(19.0)
-            .strong()
-            .color(GOLD),
-    );
+    ui.label(egui::RichText::new(text).size(19.0).strong().color(GOLD));
 }
 
 fn body_text(ui: &mut egui::Ui, text: &str) {
@@ -495,8 +500,7 @@ impl eframe::App for TravelCraftApp {
             v.selection.stroke = egui::Stroke::new(2.0, egui::Color32::WHITE);
             v.hyperlink_color = egui::Color32::from_rgb(140, 80, 0);
             v.window_stroke = egui::Stroke::new(2.0, egui::Color32::from_rgb(10, 25, 60));
-            v.widgets.noninteractive.fg_stroke =
-                egui::Stroke::new(2.0, egui::Color32::BLACK);
+            v.widgets.noninteractive.fg_stroke = egui::Stroke::new(2.0, egui::Color32::BLACK);
             v.widgets.inactive.fg_stroke = egui::Stroke::new(2.0, egui::Color32::BLACK);
             v.widgets.inactive.bg_stroke =
                 egui::Stroke::new(2.0, egui::Color32::from_rgb(10, 25, 60));
@@ -504,8 +508,7 @@ impl eframe::App for TravelCraftApp {
             v.widgets.hovered.fg_stroke = egui::Stroke::new(2.0, egui::Color32::BLACK);
             v.widgets.active.bg_fill = TEAL;
             v.widgets.active.fg_stroke = egui::Stroke::new(2.0, egui::Color32::BLACK);
-            v.widgets.open.fg_stroke =
-                egui::Stroke::new(3.0, egui::Color32::from_rgb(10, 25, 60));
+            v.widgets.open.fg_stroke = egui::Stroke::new(3.0, egui::Color32::from_rgb(10, 25, 60));
             ui.ctx().set_visuals(v);
         }
 
@@ -556,7 +559,7 @@ impl eframe::App for TravelCraftApp {
                         "Switch to Dark Theme (high contrast)"
                     };
                     if ui.button(theme_label).clicked() {
-                        self.is_dark_theme = !self.is_dark_theme;
+                        self.toggle_theme();
                         ui.close();
                     }
                 });
@@ -590,7 +593,8 @@ impl eframe::App for TravelCraftApp {
                         .selected_text(loc_label)
                         .show_ui(ui, |ui| {
                             for loc_item in travelcraft_core::i18n::AppLocale::all() {
-                                let text = format!("{} {}", loc_item.flag(), loc_item.display_name());
+                                let text =
+                                    format!("{} {}", loc_item.flag(), loc_item.display_name());
                                 let _ = ui.selectable_value(&mut self.locale, *loc_item, text);
                             }
                         });
@@ -601,7 +605,7 @@ impl eframe::App for TravelCraftApp {
                         "Light HC"
                     };
                     if ui.button(theme_icon).clicked() {
-                        self.is_dark_theme = !self.is_dark_theme;
+                        self.toggle_theme();
                     }
                     let auth_badge = if self.is_authenticated {
                         "Sovereign Explorer"
@@ -621,14 +625,38 @@ impl eframe::App for TravelCraftApp {
                 ui.heading("TravelCraft - Baedeker 2030 Studio");
                 ui.separator();
                 for (tab, key) in [
-                    (ActiveViewTab::ChronoMap, travelcraft_core::i18n::I18nKey::TabChronoMap),
-                    (ActiveViewTab::WaypointDetail, travelcraft_core::i18n::I18nKey::TabWaypointDetail),
-                    (ActiveViewTab::SensoryAtmosphere, travelcraft_core::i18n::I18nKey::TabSensoryAtmosphere),
-                    (ActiveViewTab::RoutePlanner, travelcraft_core::i18n::I18nKey::TabRoutePlanner),
-                    (ActiveViewTab::Itineraries, travelcraft_core::i18n::I18nKey::TabItineraries),
-                    (ActiveViewTab::SightLens, travelcraft_core::i18n::I18nKey::TabSightLens),
-                    (ActiveViewTab::SightChat, travelcraft_core::i18n::I18nKey::TabSightChat),
-                    (ActiveViewTab::Journal, travelcraft_core::i18n::I18nKey::TabJournal),
+                    (
+                        ActiveViewTab::ChronoMap,
+                        travelcraft_core::i18n::I18nKey::TabChronoMap,
+                    ),
+                    (
+                        ActiveViewTab::WaypointDetail,
+                        travelcraft_core::i18n::I18nKey::TabWaypointDetail,
+                    ),
+                    (
+                        ActiveViewTab::SensoryAtmosphere,
+                        travelcraft_core::i18n::I18nKey::TabSensoryAtmosphere,
+                    ),
+                    (
+                        ActiveViewTab::RoutePlanner,
+                        travelcraft_core::i18n::I18nKey::TabRoutePlanner,
+                    ),
+                    (
+                        ActiveViewTab::Itineraries,
+                        travelcraft_core::i18n::I18nKey::TabItineraries,
+                    ),
+                    (
+                        ActiveViewTab::SightLens,
+                        travelcraft_core::i18n::I18nKey::TabSightLens,
+                    ),
+                    (
+                        ActiveViewTab::SightChat,
+                        travelcraft_core::i18n::I18nKey::TabSightChat,
+                    ),
+                    (
+                        ActiveViewTab::Journal,
+                        travelcraft_core::i18n::I18nKey::TabJournal,
+                    ),
                 ] {
                     let label = travelcraft_core::i18n::t(key, self.locale);
                     if ui.selectable_label(self.active_tab == tab, label).clicked() {
@@ -781,11 +809,15 @@ impl eframe::App for TravelCraftApp {
                                     && !wp.name.to_lowercase().contains(&query)
                                     && !wp.region.to_lowercase().contains(&query)
                                     && !wp.historic_narrative.to_lowercase().contains(&query)
-                                    && !wp.culinary_specialty.iter().any(|c| c.to_lowercase().contains(&query))
+                                    && !wp
+                                        .culinary_specialty
+                                        .iter()
+                                        .any(|c| c.to_lowercase().contains(&query))
                                 {
                                     continue;
                                 }
-                                let is_wp_sel = self.selected_waypoint_id.as_deref() == Some(&wp.id);
+                                let is_wp_sel =
+                                    self.selected_waypoint_id.as_deref() == Some(&wp.id);
                                 let wp_title = format!(
                                     "{} [{}] {}",
                                     if is_wp_sel { "▶" } else { "•" },
@@ -793,7 +825,10 @@ impl eframe::App for TravelCraftApp {
                                     wp.name
                                 );
                                 if ui
-                                    .selectable_label(is_wp_sel, egui::RichText::new(wp_title).size(13.5))
+                                    .selectable_label(
+                                        is_wp_sel,
+                                        egui::RichText::new(wp_title).size(13.5),
+                                    )
                                     .clicked()
                                 {
                                     self.selected_waypoint_id = Some(wp.id.clone());
@@ -835,7 +870,10 @@ impl eframe::App for TravelCraftApp {
                                         item.title.to_lowercase().contains(&query)
                                             || item.subtitle.to_lowercase().contains(&query)
                                             || item.body.to_lowercase().contains(&query)
-                                            || item.tags.iter().any(|t| t.to_lowercase().contains(&query))
+                                            || item
+                                                .tags
+                                                .iter()
+                                                .any(|t| t.to_lowercase().contains(&query))
                                     }
                                 })
                                 .collect();
@@ -845,7 +883,12 @@ impl eframe::App for TravelCraftApp {
                             }
 
                             let branch_header = if is_search_active {
-                                format!("{} {} ({})", branch.icon, branch.title, matching_items.len())
+                                format!(
+                                    "{} {} ({})",
+                                    branch.icon,
+                                    branch.title,
+                                    matching_items.len()
+                                )
                             } else {
                                 format!("{} {}", branch.icon, branch.title)
                             };
@@ -1817,9 +1860,17 @@ impl eframe::App for TravelCraftApp {
                         if send && !self.chat_input.trim().is_empty() {
                             let q = self.chat_input.trim().to_string();
                             self.chat_input.clear();
+                            let sid = self.chat_sight().id;
+                            let model = self.chat_model.clone();
+                            self.save_setting("chat_model", &model);
                             self.chat_log.push(("you".to_string(), q.clone()));
                             let answer = self.answer_sight_question(&q);
-                            self.chat_log.push(("guide".to_string(), answer));
+                            self.chat_log.push(("guide".to_string(), answer.clone()));
+                            for (role, text) in [("you", q.as_str()), ("guide", answer.as_str())] {
+                                if let Err(e) = self.engine.chat_append(&sid, role, text) {
+                                    self.chat_status = format!("Chat history not saved: {e}");
+                                }
+                            }
                         }
                     });
                     ui.horizontal(|ui| {
@@ -1838,16 +1889,16 @@ impl eframe::App for TravelCraftApp {
                 }
 
                 ActiveViewTab::Journal => {
-                    big_heading(ui, "Sovereign Travel Journal (Local SQLite)");
+                    big_heading(ui, "Travel Journal (local SQLite file)");
                     ui.group(|ui| {
                         ui.label(egui::RichText::new("New reflection:").size(15.0).strong().color(GOLD));
                         ui.text_edit_multiline(&mut self.new_reflection);
                         ui.label("Sensory notes:");
                         ui.text_edit_singleline(&mut self.new_sensory_notes);
 
-                        if ui.button("Save Entry to DatabaseCraft").clicked() && !self.new_reflection.is_empty() {
+                        if ui.button("Save Entry").clicked() && !self.new_reflection.is_empty() {
                             let entry = TravelJournalEntry {
-                                entry_id: format!("JOURNAL-{}", self.journal_log.len() + 1),
+                                entry_id: self.engine.new_entry_id("JOURNAL"),
                                 waypoint_id: self.selected_waypoint_id.clone().unwrap_or_else(|| "general".to_string()),
                                 timestamp_epoch: chrono::Utc::now().timestamp(),
                                 user_reflection: self.new_reflection.clone(),
@@ -1857,9 +1908,17 @@ impl eframe::App for TravelCraftApp {
                                 photo_lon: None,
                                 photo_gps_source: None,
                             };
-                            let _ = self.engine.add_journal_entry(entry.clone());
-                            self.journal_log.push(entry);
-                            self.status_msg = "Journal entry persisted".to_string();
+                            match self.engine.add_journal_entry(entry) {
+                                Ok(()) => {
+                                    self.status_msg = if self.engine.is_persistent() {
+                                        "Journal entry saved".to_string()
+                                    } else {
+                                        "Journal entry kept in memory only (no database)".to_string()
+                                    };
+                                    self.reload_journal();
+                                }
+                                Err(e) => self.status_msg = format!("Journal save FAILED: {e}"),
+                            }
                             self.new_reflection.clear();
                             self.new_sensory_notes.clear();
                         }
@@ -1952,53 +2011,53 @@ const JAPAN_LAKE_BIWA: &[(f64, f64)] = &[
 
 /// National border polygon of Austria.
 const AUSTRIA_BORDER: &[(f64, f64)] = &[
-    (47.5, 9.7),   // Bregenz / Lake Constance
-    (47.1, 10.2),  // Arlberg
-    (46.9, 10.5),  // Nauders (Three borders CH/IT/AT)
-    (46.8, 11.0),  // Oetztal Alps
-    (47.0, 11.5),  // Brenner Pass
-    (47.0, 12.1),  // Zillertal Alps
-    (47.1, 12.8),  // Grossglockner / Hohe Tauern
-    (46.6, 12.9),  // Carnic Alps
-    (46.5, 13.7),  // Karawanks / Arnoldstein
-    (46.5, 14.5),  // Loibl Pass
-    (46.7, 15.3),  // South Styria wine hills
-    (46.8, 16.0),  // Bad Radkersburg
-    (47.2, 16.5),  // South Burgenland
-    (47.7, 16.8),  // Neusiedler See / Eisenstadt
-    (48.0, 17.1),  // Kittsee / Bratislava border
-    (48.2, 17.0),  // March river confluence / Hainburg
-    (48.6, 16.9),  // Hohenau / March-Thaya
-    (48.8, 16.4),  // Laa an der Thaya
-    (48.9, 15.3),  // Waldviertel (Gmuend)
-    (48.6, 14.9),  // Freistadt
-    (48.7, 13.8),  // Dreilaendereck AT/CZ/DE (Bohmerwald)
-    (48.5, 13.5),  // Passau (Inn / Danube)
-    (48.2, 13.0),  // Braunau am Inn
-    (47.8, 13.0),  // Salzburg basin
-    (47.6, 12.9),  // Berchtesgaden notch
-    (47.6, 12.4),  // Lofer / Steinberge
-    (47.6, 12.2),  // Kufstein
-    (47.5, 11.3),  // Karwendel
-    (47.4, 10.7),  // Reutte / Fernpass
-    (47.5, 9.7),   // Back to Bregenz
+    (47.5, 9.7),  // Bregenz / Lake Constance
+    (47.1, 10.2), // Arlberg
+    (46.9, 10.5), // Nauders (Three borders CH/IT/AT)
+    (46.8, 11.0), // Oetztal Alps
+    (47.0, 11.5), // Brenner Pass
+    (47.0, 12.1), // Zillertal Alps
+    (47.1, 12.8), // Grossglockner / Hohe Tauern
+    (46.6, 12.9), // Carnic Alps
+    (46.5, 13.7), // Karawanks / Arnoldstein
+    (46.5, 14.5), // Loibl Pass
+    (46.7, 15.3), // South Styria wine hills
+    (46.8, 16.0), // Bad Radkersburg
+    (47.2, 16.5), // South Burgenland
+    (47.7, 16.8), // Neusiedler See / Eisenstadt
+    (48.0, 17.1), // Kittsee / Bratislava border
+    (48.2, 17.0), // March river confluence / Hainburg
+    (48.6, 16.9), // Hohenau / March-Thaya
+    (48.8, 16.4), // Laa an der Thaya
+    (48.9, 15.3), // Waldviertel (Gmuend)
+    (48.6, 14.9), // Freistadt
+    (48.7, 13.8), // Dreilaendereck AT/CZ/DE (Bohmerwald)
+    (48.5, 13.5), // Passau (Inn / Danube)
+    (48.2, 13.0), // Braunau am Inn
+    (47.8, 13.0), // Salzburg basin
+    (47.6, 12.9), // Berchtesgaden notch
+    (47.6, 12.4), // Lofer / Steinberge
+    (47.6, 12.2), // Kufstein
+    (47.5, 11.3), // Karwendel
+    (47.4, 10.7), // Reutte / Fernpass
+    (47.5, 9.7),  // Back to Bregenz
 ];
 
 /// Danube River (Donau) vector polyline through Austria.
 const AUSTRIA_DANUBE: &[(f64, f64)] = &[
-    (48.56, 13.43), // Passau
-    (48.45, 13.85), // Schlogener Schlinge
-    (48.30, 14.28), // Linz
-    (48.22, 14.52), // Enns
-    (48.19, 14.90), // Ybbs an der Donau
+    (48.56, 13.43),     // Passau
+    (48.45, 13.85),     // Schlogener Schlinge
+    (48.30, 14.28),     // Linz
+    (48.22, 14.52),     // Enns
+    (48.19, 14.90),     // Ybbs an der Donau
     (48.2297, 15.3319), // Melk Abbey
-    (48.36, 15.42), // Spitz an der Donau
-    (48.39, 15.52), // Duernstein Ruin
-    (48.41, 15.61), // Krems an der Donau
-    (48.33, 16.05), // Tulln
-    (48.30, 16.31), // Klosterneuburg
-    (48.21, 16.39), // Vienna (Donaukanal / Stephansdom)
-    (48.14, 16.94), // Hainburg an der Donau
+    (48.36, 15.42),     // Spitz an der Donau
+    (48.39, 15.52),     // Duernstein Ruin
+    (48.41, 15.61),     // Krems an der Donau
+    (48.33, 16.05),     // Tulln
+    (48.30, 16.31),     // Klosterneuburg
+    (48.21, 16.39),     // Vienna (Donaukanal / Stephansdom)
+    (48.14, 16.94),     // Hainburg an der Donau
 ];
 
 /// High Alpine Spine across Austria.
@@ -2037,25 +2096,84 @@ const JAPAN_CITIES: &[(&str, f64, f64)] = &[
 /// Convex sub-polygons for Austrian landmass background fill.
 const AUSTRIA_LAND_HULLS: &[&[(f64, f64)]] = &[
     // West (Vorarlberg & Tyrol)
-    &[(47.5, 9.7), (47.1, 10.2), (47.0, 11.5), (47.6, 12.2), (47.5, 11.3), (47.4, 10.7)],
+    &[
+        (47.5, 9.7),
+        (47.1, 10.2),
+        (47.0, 11.5),
+        (47.6, 12.2),
+        (47.5, 11.3),
+        (47.4, 10.7),
+    ],
     // Central (Salzburg & Upper Austria)
-    &[(47.6, 12.2), (47.0, 12.1), (47.1, 12.8), (47.48, 13.61), (47.8, 13.0), (48.3, 14.28), (48.5, 13.5)],
+    &[
+        (47.6, 12.2),
+        (47.0, 12.1),
+        (47.1, 12.8),
+        (47.48, 13.61),
+        (47.8, 13.0),
+        (48.3, 14.28),
+        (48.5, 13.5),
+    ],
     // East (Lower Austria & Vienna Basin)
-    &[(48.5, 13.5), (48.3, 14.28), (48.8, 15.3), (48.8, 16.4), (48.2, 17.0), (47.7, 16.8), (47.76, 15.80)],
+    &[
+        (48.5, 13.5),
+        (48.3, 14.28),
+        (48.8, 15.3),
+        (48.8, 16.4),
+        (48.2, 17.0),
+        (47.7, 16.8),
+        (47.76, 15.80),
+    ],
     // South (Carinthia & Styria)
-    &[(47.1, 12.8), (46.6, 12.9), (46.5, 14.5), (46.8, 16.0), (47.2, 16.5), (47.07, 15.44), (47.48, 13.61)],
+    &[
+        (47.1, 12.8),
+        (46.6, 12.9),
+        (46.5, 14.5),
+        (46.8, 16.0),
+        (47.2, 16.5),
+        (47.07, 15.44),
+        (47.48, 13.61),
+    ],
 ];
 
 /// Convex sub-polygons for Honshu landmass background fill.
 const JAPAN_LAND_HULLS: &[&[(f64, f64)]] = &[
     // Kanto & Chubu
-    &[(35.0, 139.8), (35.7, 140.8), (36.8, 139.6), (36.8, 137.1), (35.0, 136.9), (34.6, 138.2), (35.0, 138.5)],
+    &[
+        (35.0, 139.8),
+        (35.7, 140.8),
+        (36.8, 139.6),
+        (36.8, 137.1),
+        (35.0, 136.9),
+        (34.6, 138.2),
+        (35.0, 138.5),
+    ],
     // Kansai Basin
-    &[(35.0, 136.9), (35.5, 135.5), (34.7, 135.2), (34.6, 135.4), (33.4, 135.8), (34.5, 136.8)],
+    &[
+        (35.0, 136.9),
+        (35.5, 135.5),
+        (34.7, 135.2),
+        (34.6, 135.4),
+        (33.4, 135.8),
+        (34.5, 136.8),
+    ],
     // Chugoku & Sanyo
-    &[(35.5, 135.5), (35.5, 133.0), (34.0, 130.9), (34.3, 132.4), (34.6, 133.9), (34.7, 135.2)],
+    &[
+        (35.5, 135.5),
+        (35.5, 133.0),
+        (34.0, 130.9),
+        (34.3, 132.4),
+        (34.6, 133.9),
+        (34.7, 135.2),
+    ],
     // Tohoku
-    &[(36.8, 139.6), (37.0, 141.0), (40.0, 140.0), (37.9, 139.0), (36.8, 137.1)],
+    &[
+        (36.8, 139.6),
+        (37.0, 141.0),
+        (40.0, 140.0),
+        (37.9, 139.0),
+        (36.8, 137.1),
+    ],
 ];
 
 /// Exact WGS84 Mercator projection from (lat, lon) to screen pos2.

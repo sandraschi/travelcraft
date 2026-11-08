@@ -5,11 +5,12 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 travelcraft-baedeker = { path = "../travelcraft-baedeker" }
-qgiscraft-core.workspace = true
-databasecraft-store.workspace = true
-databasecraft-core.workspace = true
+giscraft-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 chrono.workspace = true

@@ -1,16 +1,18 @@
 //! TravelCraft Core Engine
 //!
 //! Integrates Baedeker 2030 chrono-cartography, offline vector tiles,
-//! and sovereign travel journal storage backed by DatabaseCraft.
+//! and a durable travel journal (SQLite, WAL, synchronous=FULL).
 
 pub mod i18n;
 
-use databasecraft_store::DatabaseStore;
-use qgiscraft_core::geo::{haversine_m, LonLat};
-use qgiscraft_core::geocode::{demo_search, Hit};
-use qgiscraft_core::tiles::bbox_to_tiles;
+use giscraft_core::geo::{haversine_m, LonLat};
+use giscraft_core::geocode::{demo_search, Hit};
+use giscraft_core::tiles::bbox_to_tiles;
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 use thiserror::Error;
 use travelcraft_baedeker::{
     offline_chat_answer, transit_blob_for_sight, BaedekerCatalog, ChronoWaypoint, CountryEdition,
@@ -25,6 +27,8 @@ pub enum TravelCraftError {
     NotFound(String),
     #[error("GIS calculation error: {0}")]
     Gis(String),
+    #[error("Invalid input: {0}")]
+    Invalid(String),
     #[error("No sight match for photo")]
     NoSight,
     #[error("Serialization error: {0}")]
@@ -67,30 +71,92 @@ pub struct SightLensResult {
     pub info_page_body: String,
 }
 
+const MAX_TEXT_CHARS: usize = 16_000;
+const MAX_FIELD_CHARS: usize = 4_096;
+const MAX_PHOTOS: usize = 32;
+const CHAT_KEEP: i64 = 1_000;
+
+fn db_err<E: std::fmt::Display>(e: E) -> TravelCraftError {
+    TravelCraftError::Store(e.to_string())
+}
+
+/// Where durable state lives: `TRAVELCRAFT_DATA`, else `%LOCALAPPDATA%\travelcraft`,
+/// else `~/.travelcraft`, else `./travelcraft-data`.
+pub fn data_dir() -> PathBuf {
+    if let Some(v) = std::env::var_os("TRAVELCRAFT_DATA").filter(|v| !v.is_empty()) {
+        return PathBuf::from(v);
+    }
+    if let Some(v) = std::env::var_os("LOCALAPPDATA").filter(|v| !v.is_empty()) {
+        return PathBuf::from(v).join("travelcraft");
+    }
+    if let Some(v) = std::env::var_os("HOME").filter(|v| !v.is_empty()) {
+        return PathBuf::from(v).join(".travelcraft");
+    }
+    PathBuf::from("travelcraft-data")
+}
+
+/// The engine. File-backed engines persist the journal, chat history and
+/// settings across restarts and crashes (SQLite WAL, synchronous=FULL).
+/// `new_in_memory` is for tests and the headless smoke run only.
 pub struct TravelCraftEngine {
-    store: Arc<Mutex<DatabaseStore>>,
+    conn: Mutex<Connection>,
+    path: Option<PathBuf>,
+    seq: AtomicU64,
 }
 
 impl TravelCraftEngine {
     pub fn new_in_memory() -> Result<Self, TravelCraftError> {
-        let store =
-            DatabaseStore::open_in_memory().map_err(|e| TravelCraftError::Store(e.to_string()))?;
+        let conn = Connection::open_in_memory().map_err(db_err)?;
+        Self::finish(conn, None)
+    }
 
+    /// Open (creating if needed) a file-backed engine at `path`.
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, TravelCraftError> {
+        let path = path.as_ref().to_path_buf();
+        if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
+            std::fs::create_dir_all(dir).map_err(db_err)?;
+        }
+        let conn = Connection::open(&path).map_err(db_err)?;
+        conn.execute_batch(
+            "PRAGMA journal_mode = WAL;
+             PRAGMA synchronous = FULL;
+             PRAGMA busy_timeout = 5000;",
+        )
+        .map_err(db_err)?;
+        Self::finish(conn, Some(path))
+    }
+
+    /// Open the default database `<data_dir>/travelcraft.db`.
+    pub fn open_default() -> Result<Self, TravelCraftError> {
+        Self::open(data_dir().join("travelcraft.db"))
+    }
+
+    fn finish(conn: Connection, path: Option<PathBuf>) -> Result<Self, TravelCraftError> {
         let engine = Self {
-            store: Arc::new(Mutex::new(store)),
+            conn: Mutex::new(conn),
+            path,
+            seq: AtomicU64::new(0),
         };
         engine.init_schema()?;
         Ok(engine)
     }
 
-    fn init_schema(&self) -> Result<(), TravelCraftError> {
-        let store_guard = self
-            .store
-            .lock()
-            .map_err(|_| TravelCraftError::Store("Lock poison".to_string()))?;
+    fn lock(&self) -> MutexGuard<'_, Connection> {
+        self.conn.lock().unwrap_or_else(PoisonError::into_inner)
+    }
 
-        let schema_sql = "
-            CREATE TABLE IF NOT EXISTS travel_journal (
+    pub fn is_persistent(&self) -> bool {
+        self.path.is_some()
+    }
+
+    pub fn db_path(&self) -> Option<&Path> {
+        self.path.as_deref()
+    }
+
+    fn init_schema(&self) -> Result<(), TravelCraftError> {
+        let conn = self.lock();
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS travel_journal (
                 entry_id TEXT PRIMARY KEY,
                 waypoint_id TEXT NOT NULL,
                 timestamp_epoch INTEGER NOT NULL,
@@ -101,21 +167,29 @@ impl TravelCraftEngine {
                 photo_lon REAL,
                 photo_gps_source TEXT
             );
-        ";
-        store_guard
-            .execute(schema_sql)
-            .map_err(|e| TravelCraftError::Store(e.to_string()))?;
-        // Migration for older DBs without GPS columns.
+            CREATE TABLE IF NOT EXISTS chat_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sight_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                text TEXT NOT NULL,
+                ts INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );",
+        )
+        .map_err(db_err)?;
+        // Migration for older DBs without GPS columns; a duplicate-column error is expected.
         for ddl in [
             "ALTER TABLE travel_journal ADD COLUMN photo_lat REAL",
             "ALTER TABLE travel_journal ADD COLUMN photo_lon REAL",
             "ALTER TABLE travel_journal ADD COLUMN photo_gps_source TEXT",
         ] {
-            let _ = store_guard.execute(ddl);
+            let _ = conn.execute(ddl, []);
         }
         Ok(())
     }
-
     pub fn list_countries(&self) -> Vec<CountryEdition> {
         vec![
             BaedekerCatalog::get_japan_craft(),
@@ -229,7 +303,7 @@ impl TravelCraftEngine {
 
     /// Map blob from qgiscraft: slippy tiles + scale + OSM template around the sight.
     pub fn map_blob_for_sight(&self, lat: f64, lon: f64) -> String {
-        use qgiscraft_core::tiles::{
+        use giscraft_core::tiles::{
             lnglat_to_tile_float, meters_per_pixel, nice_scale_bar, tile_url, Tile,
         };
         let zoom: u8 = 16;
@@ -292,7 +366,7 @@ impl TravelCraftEngine {
             _ => (48.2085, 16.3738),
         };
         let sight = self.identify_sight(plat, plon, hint)?;
-        let entry_id = format!("SIGHT-{}", chrono::Utc::now().timestamp());
+        let entry_id = self.new_entry_id("SIGHT");
         let entry = TravelJournalEntry {
             entry_id: entry_id.clone(),
             waypoint_id: sight.id.clone(),
@@ -318,47 +392,205 @@ impl TravelCraftEngine {
         })
     }
 
-    pub fn add_journal_entry(&self, entry: TravelJournalEntry) -> Result<(), TravelCraftError> {
-        let store_guard = self
-            .store
-            .lock()
-            .map_err(|_| TravelCraftError::Store("Lock poison".to_string()))?;
+    /// Unique, sortable id: `<PREFIX>-<unix millis>-<process sequence>`.
+    pub fn new_entry_id(&self, prefix: &str) -> String {
+        let n = self.seq.fetch_add(1, Ordering::Relaxed);
+        format!("{prefix}-{}-{n:03}", chrono::Utc::now().timestamp_millis())
+    }
 
+    fn check_text(name: &str, s: &str, max: usize, required: bool) -> Result<(), TravelCraftError> {
+        if required && s.trim().is_empty() {
+            return Err(TravelCraftError::Invalid(format!("{name} is empty")));
+        }
+        if s.chars().count() > max {
+            return Err(TravelCraftError::Invalid(format!(
+                "{name} is longer than {max} characters"
+            )));
+        }
+        Ok(())
+    }
+
+    fn validate_entry(entry: &TravelJournalEntry) -> Result<(), TravelCraftError> {
+        Self::check_text("entry_id", &entry.entry_id, MAX_FIELD_CHARS, true)?;
+        Self::check_text("waypoint_id", &entry.waypoint_id, MAX_FIELD_CHARS, true)?;
+        Self::check_text("reflection", &entry.user_reflection, MAX_TEXT_CHARS, true)?;
+        Self::check_text("sensory_notes", &entry.sensory_notes, MAX_TEXT_CHARS, false)?;
+        if entry.photo_uris.len() > MAX_PHOTOS {
+            return Err(TravelCraftError::Invalid(format!(
+                "more than {MAX_PHOTOS} photos"
+            )));
+        }
+        for uri in &entry.photo_uris {
+            Self::check_text("photo uri", uri, MAX_FIELD_CHARS, true)?;
+        }
+        if let Some(src) = &entry.photo_gps_source {
+            Self::check_text("gps source", src, 64, false)?;
+        }
+        if let Some(lat) = entry.photo_lat {
+            if !lat.is_finite() || !(-90.0..=90.0).contains(&lat) {
+                return Err(TravelCraftError::Invalid("latitude out of range".into()));
+            }
+        }
+        if let Some(lon) = entry.photo_lon {
+            if !lon.is_finite() || !(-180.0..=180.0).contains(&lon) {
+                return Err(TravelCraftError::Invalid("longitude out of range".into()));
+            }
+        }
+        Ok(())
+    }
+
+    /// Append a journal entry. Parameterised SQL; a duplicate `entry_id` is an error.
+    pub fn add_journal_entry(&self, entry: TravelJournalEntry) -> Result<(), TravelCraftError> {
+        Self::validate_entry(&entry)?;
         let photos_json = serde_json::to_string(&entry.photo_uris)?;
-        let lat_sql = entry
-            .photo_lat
-            .map(|v| v.to_string())
-            .unwrap_or("NULL".to_string());
-        let lon_sql = entry
-            .photo_lon
-            .map(|v| v.to_string())
-            .unwrap_or("NULL".to_string());
-        let src_sql = entry
-            .photo_gps_source
-            .clone()
-            .unwrap_or_default()
-            .replace('\'', "''");
-        let src_sql = if entry.photo_gps_source.is_some() {
-            format!("'{}'", src_sql)
-        } else {
-            "NULL".to_string()
-        };
-        let sql = format!(
-            "INSERT INTO travel_journal (entry_id, waypoint_id, timestamp_epoch, user_reflection, sensory_notes, photo_uris_json, photo_lat, photo_lon, photo_gps_source)
-             VALUES ('{}', '{}', {}, '{}', '{}', '{}', {}, {}, {});",
-            entry.entry_id,
-            entry.waypoint_id,
-            entry.timestamp_epoch,
-            entry.user_reflection.replace('\'', "''"),
-            entry.sensory_notes.replace('\'', "''"),
-            photos_json.replace('\'', "''"),
-            lat_sql,
-            lon_sql,
-            src_sql
-        );
-        store_guard
-            .execute(&sql)
-            .map_err(|e| TravelCraftError::Store(e.to_string()))?;
+        self.lock()
+            .execute(
+                "INSERT INTO travel_journal (entry_id, waypoint_id, timestamp_epoch, user_reflection, sensory_notes, photo_uris_json, photo_lat, photo_lon, photo_gps_source)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    entry.entry_id,
+                    entry.waypoint_id,
+                    entry.timestamp_epoch,
+                    entry.user_reflection,
+                    entry.sensory_notes,
+                    photos_json,
+                    entry.photo_lat,
+                    entry.photo_lon,
+                    entry.photo_gps_source,
+                ],
+            )
+            .map_err(db_err)?;
+        Ok(())
+    }
+
+    /// Newest-first journal entries, at most `limit` (clamped to 1..=1000).
+    pub fn list_journal(&self, limit: usize) -> Result<Vec<TravelJournalEntry>, TravelCraftError> {
+        let limit = i64::try_from(limit.clamp(1, 1000)).unwrap_or(1000);
+        let conn = self.lock();
+        let mut stmt = conn
+            .prepare(
+                "SELECT entry_id, waypoint_id, timestamp_epoch, user_reflection, sensory_notes, photo_uris_json, photo_lat, photo_lon, photo_gps_source
+                 FROM travel_journal ORDER BY timestamp_epoch DESC, rowid DESC LIMIT ?1",
+            )
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map(params![limit], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, String>(3)?,
+                    r.get::<_, String>(4)?,
+                    r.get::<_, String>(5)?,
+                    r.get::<_, Option<f64>>(6)?,
+                    r.get::<_, Option<f64>>(7)?,
+                    r.get::<_, Option<String>>(8)?,
+                ))
+            })
+            .map_err(db_err)?;
+        let mut out = Vec::new();
+        for row in rows {
+            let (
+                entry_id,
+                waypoint_id,
+                timestamp_epoch,
+                user_reflection,
+                sensory_notes,
+                photos,
+                photo_lat,
+                photo_lon,
+                photo_gps_source,
+            ) = row.map_err(db_err)?;
+            out.push(TravelJournalEntry {
+                entry_id,
+                waypoint_id,
+                timestamp_epoch,
+                user_reflection,
+                sensory_notes,
+                photo_uris: serde_json::from_str(&photos)?,
+                photo_lat,
+                photo_lon,
+                photo_gps_source,
+            });
+        }
+        Ok(out)
+    }
+
+    pub fn journal_count(&self) -> Result<usize, TravelCraftError> {
+        let n: i64 = self
+            .lock()
+            .query_row("SELECT COUNT(*) FROM travel_journal", [], |r| r.get(0))
+            .map_err(db_err)?;
+        Ok(usize::try_from(n).unwrap_or(0))
+    }
+
+    /// Append one chat line (role is "you" or "guide"). Keeps the newest 1000 lines.
+    pub fn chat_append(
+        &self,
+        sight_id: &str,
+        role: &str,
+        text: &str,
+    ) -> Result<(), TravelCraftError> {
+        Self::check_text("sight_id", sight_id, MAX_FIELD_CHARS, false)?;
+        Self::check_text("role", role, 32, true)?;
+        Self::check_text("chat text", text, MAX_TEXT_CHARS, true)?;
+        let conn = self.lock();
+        conn.execute(
+            "INSERT INTO chat_log (sight_id, role, text, ts) VALUES (?1, ?2, ?3, ?4)",
+            params![sight_id, role, text, chrono::Utc::now().timestamp()],
+        )
+        .map_err(db_err)?;
+        conn.execute(
+            "DELETE FROM chat_log WHERE id <= (SELECT MAX(id) FROM chat_log) - ?1",
+            params![CHAT_KEEP],
+        )
+        .map_err(db_err)?;
+        Ok(())
+    }
+
+    /// The last `limit` chat lines, oldest first, as `(role, text)`.
+    pub fn chat_recent(&self, limit: usize) -> Result<Vec<(String, String)>, TravelCraftError> {
+        let limit = i64::try_from(limit.clamp(1, 1000)).unwrap_or(1000);
+        let conn = self.lock();
+        let mut stmt = conn
+            .prepare(
+                "SELECT role, text FROM (SELECT id, role, text FROM chat_log ORDER BY id DESC LIMIT ?1) ORDER BY id ASC",
+            )
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map(params![limit], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+            })
+            .map_err(db_err)?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row.map_err(db_err)?);
+        }
+        Ok(out)
+    }
+
+    pub fn setting_get(&self, key: &str) -> Result<Option<String>, TravelCraftError> {
+        use rusqlite::OptionalExtension;
+        self.lock()
+            .query_row(
+                "SELECT value FROM settings WHERE key = ?1",
+                params![key],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(db_err)
+    }
+
+    pub fn setting_set(&self, key: &str, value: &str) -> Result<(), TravelCraftError> {
+        Self::check_text("setting key", key, 128, true)?;
+        Self::check_text("setting value", value, MAX_FIELD_CHARS, false)?;
+        self.lock()
+            .execute(
+                "INSERT INTO settings (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                params![key, value],
+            )
+            .map_err(db_err)?;
         Ok(())
     }
 }

@@ -199,7 +199,9 @@ pub fn t(key: I18nKey, locale: AppLocale) -> &'static str {
         (I18nKey::ActionAddJournal, AppLocale::Zh) => "保存游记记录",
 
         (I18nKey::ActionIdentifySight, AppLocale::En) => "Identify Sight / Artwork",
-        (I18nKey::ActionIdentifySight, AppLocale::De) => "Sehenswürdigkeit / Kunstwerk identifizieren",
+        (I18nKey::ActionIdentifySight, AppLocale::De) => {
+            "Sehenswürdigkeit / Kunstwerk identifizieren"
+        }
         (I18nKey::ActionIdentifySight, AppLocale::Fr) => "Identifier le monument / l'œuvre",
         (I18nKey::ActionIdentifySight, AppLocale::Es) => "Identificar monumento u obra de arte",
         (I18nKey::ActionIdentifySight, AppLocale::Ja) => "史跡・美術品をAI照合",

@@ -46,6 +46,11 @@ enum Commands {
         #[arg(default_value = "")]
         hint: String,
     },
+    /// List the durable travel journal, newest first
+    Journal {
+        #[arg(default_value_t = 20)]
+        limit: usize,
+    },
     /// Chat about a sight (offline blob-grounded; online LLM via Ollama when reachable)
     Chat {
         #[arg(long, default_value = "caravaggio")]
@@ -72,7 +77,7 @@ enum Commands {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
-    let engine = TravelCraftEngine::new_in_memory()?;
+    let engine = TravelCraftEngine::open_default()?;
 
     match cli.command {
         Commands::Countries => {
@@ -104,6 +109,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         } => {
             let res = engine.sightlens_capture(&photo, Some(lat), Some(lon), &gps_source, &hint)?;
             println!("{}", serde_json::to_string_pretty(&res)?);
+        }
+        Commands::Journal { limit } => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&engine.list_journal(limit)?)?
+            );
         }
         Commands::Chat {
             about,
@@ -182,7 +193,10 @@ fn mobile_sight_page(engine: &TravelCraftEngine, sight: &travelcraft_baedeker::S
     for days in [1u32, 3, 7] {
         let cc = sight.country_code.as_str();
         if let Ok(plan) = engine.plan_itinerary(cc, days) {
-            itin.push_str(&format!("<h3>{days}-day ({})</h3><ul>", esc(&plan.pace_label)));
+            itin.push_str(&format!(
+                "<h3>{days}-day ({})</h3><ul>",
+                esc(&plan.pace_label)
+            ));
             for d in &plan.days {
                 itin.push_str(&format!(
                     "<li><b>Day {}:</b> {}</li>",
@@ -227,7 +241,11 @@ fn mobile_index(engine: &TravelCraftEngine) -> String {
     let mut cards = String::new();
     for cc in ["AT", "JP"] {
         if let Ok(ed) = engine.get_country(cc) {
-            cards.push_str(&format!("<div class=\"card\"><h2>{}</h2><p>{}</p><ul>", esc(&ed.title), esc(&ed.subtitle)));
+            cards.push_str(&format!(
+                "<div class=\"card\"><h2>{}</h2><p>{}</p><ul>",
+                esc(&ed.title),
+                esc(&ed.subtitle)
+            ));
             for route in &ed.curated_routes {
                 for w in &route.waypoints {
                     cards.push_str(&format!(
@@ -257,7 +275,10 @@ fn mobile_index(engine: &TravelCraftEngine) -> String {
 /// Minimal mobile HTTP server (std + tokio, no extra deps).
 /// iPad path: run this, then `tailscale funnel <port>` (public) or
 /// `tailscale serve` (tailnet-only), open the URL on iPad Safari.
-fn run_mobile_server(_engine: &TravelCraftEngine, port: u16) -> Result<(), Box<dyn std::error::Error>> {
+fn run_mobile_server(
+    _engine: &TravelCraftEngine,
+    port: u16,
+) -> Result<(), Box<dyn std::error::Error>> {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;

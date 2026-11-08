@@ -1408,6 +1408,7 @@ pub fn offline_chat_answer(ctx: &SightChatContext, question: &str) -> String {
     )
 }
 
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1490,14 +1491,20 @@ mod tests {
             .iter()
             .find(|b| b.id == "jp_branch_dining")
             .expect("Must have dining branch");
-        assert!(dining.items.iter().any(|i| i.id == "jp_item_konbini_survival"));
+        assert!(dining
+            .items
+            .iter()
+            .any(|i| i.id == "jp_item_konbini_survival"));
 
         let culture = tree
             .branches
             .iter()
             .find(|b| b.id == "jp_branch_culture")
             .expect("Must have culture branch");
-        assert!(culture.items.iter().any(|i| i.id == "jp_item_temizuya_bowing"));
+        assert!(culture
+            .items
+            .iter()
+            .any(|i| i.id == "jp_item_temizuya_bowing"));
         assert!(culture.items.iter().any(|i| i.id == "jp_item_genkan_shoes"));
         assert!(culture
             .items
@@ -1513,7 +1520,10 @@ mod tests {
     fn test_find_tree_item() {
         let item = BaedekerCatalog::find_tree_item("AT", "at_item_beisl_rules");
         assert!(item.is_some());
-        assert_eq!(item.unwrap().title, "The Golden Vienna Beisl Rules & Culture");
+        assert_eq!(
+            item.unwrap().title,
+            "The Golden Vienna Beisl Rules & Culture"
+        );
 
         let jp_item = BaedekerCatalog::find_tree_item("JP", "jp_item_jr_pass");
         assert!(jp_item.is_some());

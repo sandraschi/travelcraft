@@ -621,28 +621,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
-name = "databasecraft-core"
-version = "0.5.0"
-dependencies = [
- "chrono",
- "databasecraft-store",
- "serde",
- "serde_json",
- "tokio",
- "uuid",
-]
-
-[[package]]
-name = "databasecraft-store"
-version = "0.5.0"
-dependencies = [
- "chrono",
- "rusqlite",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "dispatch"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1143,6 +1121,27 @@ checksum = "ee8cfcc411d9adbbaba82fb72661cc1bcca13e8bba98b364e62b2dba8f960159"
 dependencies = [
  "color_quant",
  "weezl",
+]
+
+[[package]]
+name = "giscraft-core"
+version = "0.1.0"
+dependencies = [
+ "giscraft-store",
+ "image",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "giscraft-store"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2776,27 +2775,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d55d956fa96f5ec02be2e13af0e20391a5aa83d6a074e3ad368959d0fab299ea"
 
 [[package]]
-name = "qgiscraft-core"
-version = "0.1.0"
-dependencies = [
- "image",
- "qgiscraft-store",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "qgiscraft-store"
-version = "0.1.0"
-dependencies = [
- "rusqlite",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "qoi"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3862,7 +3840,7 @@ dependencies = [
  "clap",
  "eframe",
  "egui",
- "qgiscraft-core",
+ "giscraft-core",
  "reqwest",
  "serde",
  "serde_json",
@@ -3888,9 +3866,7 @@ name = "travelcraft-core"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "databasecraft-core",
- "databasecraft-store",
- "qgiscraft-core",
+ "giscraft-core",
  "rusqlite",
  "serde",
  "serde_json",
@@ -4007,11 +3983,6 @@ name = "uuid"
 version = "1.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a0e2d11620c50695fe12bbbfde96b3477fe606e7284c22d505c12ce51214514"
-dependencies = [
- "getrandom 0.4.3",
- "js-sys",
- "wasm-bindgen",
-]
 
 [[package]]
 name = "v_frame"
