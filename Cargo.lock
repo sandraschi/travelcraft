@@ -3834,7 +3834,7 @@ dependencies = [
 
 [[package]]
 name = "travelcraft-app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "clap",
@@ -3852,7 +3852,7 @@ dependencies = [
 
 [[package]]
 name = "travelcraft-baedeker"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "serde",
@@ -3863,7 +3863,7 @@ dependencies = [
 
 [[package]]
 name = "travelcraft-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "giscraft-core",
@@ -3878,7 +3878,7 @@ dependencies = [
 
 [[package]]
 name = "travelcraft-mcp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "serde",
