@@ -1,0 +1,1 @@
+cd275848e1d9e9c4a597e51e6477578bc5c8f17de6981e66ff442b2404894ab6  travelcraft-0.1.0-windows-x64-portable.zip
