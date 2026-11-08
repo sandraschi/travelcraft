@@ -17,3 +17,4 @@ chrono.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 rusqlite.workspace = true
+reqwest.workspace = true

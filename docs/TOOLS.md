@@ -19,9 +19,12 @@ fall back to memory.
 | `travel_identify_sight` | `lat`, `lon`, `hint` (all optional) | sight or artwork from the offline catalogue |
 | `travel_sight_chat` | `question`; optional `about`, `lat`, `lon` | offline answer plus system prompt, map blob, transit blob |
 | `travel_sightlens_capture` | `photo`; optional `gps_source`, `lat`, `lon`, `hint` | identification plus a durable journal entry |
-| 	ravel_journal_add | eflection; optional sensory_notes, waypoint_id, photo, lat, lon, gps_source | new entry id; text capped at 16000 chars |
-| 	ravel_journal_list | optional limit (1 to 1000, default 20) | entries, newest first |
-| 	ravel_geocode | query | offline demo geocoder hits (giscraft-core) |
+| `travel_journal_add` | `reflection`; optional `sensory_notes`, `waypoint_id`, `photo`, `lat`, `lon`, `gps_source` | new entry id; text capped at 16000 chars |
+| `travel_journal_list` | optional `limit` (1 to 1000, default 20) | entries, newest first |
+| `travel_geocode` | `query` | offline demo geocoder hit (giscraft-core); echoes the query at a fixed Wien point, not a place index |
+| `travel_nearby` | `category` or `key`+`value`; `lat`+`lon` or `place` (major AT/JP city); optional `radius_m` (50 to 5000, default 1500), `limit` (1 to 50, default 15), `refresh` | **online, opt-in.** Places from OpenStreetMap via Overpass, nearest first, with OSM and edit links, raw opening_hours, `missing_tags`, ODbL attribution, and `source` (overpass, cache, stale_cache) |
+
+Network: `travel_nearby` is the only tool that uses it. Categories: bicycle_repair, bicycle_rental, pharmacy, doctors, hospital, atm, cafe, restaurant, bakery, supermarket, toilets, drinking_water, ev_charging, post_office, museum, viewpoint, hotel, train_station; or any fenced OSM key and value. No raw Overpass QL is accepted. OSM text is untrusted data: control characters are stripped and fields capped at 200 chars. Answers are cached 24 h in the database; if the live query fails, the last cached answer comes back with `stale: true` and a warning, and with no cache the call fails with `error_type: offline`. Public mirrors are tried in order (overpass.openstreetmap.fr, overpass-api.de, kumi.systems, private.coffee); `TRAVELCRAFT_OVERPASS_URL` pins one endpoint. `truncated: true` means Overpass hit the 300-element fetch cap, so shrink the radius. Opening hours are returned raw and never evaluated.
 
 Limits today: the catalogue is small (Stephansdom, KHM Caravaggio, Klimt Kiss
 and the edition waypoints). `travel_sight_chat` does not call an LLM; it returns

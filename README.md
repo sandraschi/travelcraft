@@ -14,7 +14,7 @@ Features:
 - **FastMCP Protocol**: Port `14129`.
 
 Vendored offline sources (see `crates/travelcraft-baedeker/src/lib.rs SOURCES`):
-- `japanophile-mcp/assets/knowledge/japan/travel.html` — JR Pass, konbini, budget, etiquette, regions.
+- `japanophile-mcp/assets/knowledge/japan/travel.html` - JR Pass, konbini, budget, etiquette, regions.
 - `vienna-life-assistant` `vienna_tips` (coffee/music/museum), `restaurants_data` Beisl rule, `culture_data` (KHM, Belvedere, Stephansplatz).
 
 ---
@@ -45,23 +45,27 @@ Travelcraft is an offline, agent-native travel primer. The point is not a better
 | "Log: Cafe Berg, rain, Melange" | `travel_journal_add` | Saved entry id |
 | "Show my last 10 journal entries" | `travel_journal_list` | Entries, newest first |
 | "Coordinates for Wien" | `travel_geocode` | Demo geocoder hit (a handful of places only) |
+| "Vienna bicycle repair shops" | `travel_nearby` (bicycle_repair, Wien) | Nearest shops and repair stations from OpenStreetMap with address, phone, raw opening hours, OSM link. **Online**, cached 24 h |
+| "Public toilets or drinking water near me" | `travel_nearby` (toilets, drinking_water, lat/lon) | Same, from OSM |
+| "Which of these lack opening hours in OSM?" | `travel_nearby` `missing_tags` plus `osm_edit_url` | A to-do list for a mapper; travelcraft itself never edits OSM |
 
 ### Not built yet (do not expect these)
 
 | You say | Why it does not work today | What it would take |
 |---|---|---|
-| "Vienna bicycle repair shops near me" | No POI search. `travel_geocode` is a demo geocoder, not a place index | A `travel_nearby` tool over OpenStreetMap Overpass (`shop=bicycle`) using giscraft-core's fenced query builder; online, so it would be opt-in and labelled |
-| "Is it open now?", prices, booking | No opening-hours or booking data | Overpass `opening_hours` tags; booking is out of scope |
+| "Is it open now?", prices, booking | `travel_nearby` returns the raw `opening_hours` tag but nothing evaluates it, and there is no price or booking data | An opening-hours evaluator; booking is out of scope |
 | "Another country" | Only Austria and Japan editions exist | New editions in `travelcraft-baedeker` |
 | "Which painting is in this photo?" | Identification uses GPS plus a hint, not the image | An image model; not planned |
 | Contributing back to OpenStreetMap | Travelcraft reads OSM tiles, it does not edit OSM | A mapper workflow belongs in giscraft, not here |
+
+Network use is limited to `travel_nearby` (and the GUI map tiles). Overpass data comes from public instances that are sometimes slow or down; travelcraft tries several mirrors, caches answers for 24 h and says so when it falls back to an old answer. Coverage and opening hours are only as good as OpenStreetMap.
 
 Journal, chat history and settings live in `%LOCALAPPDATA%\travelcraft\travelcraft.db` (override with `TRAVELCRAFT_DATA`).
 ## Workspace Structure
 
 1. `crates/travelcraft-baedeker`: Editions (`JapanCraft` 9 stops, `AustriaCraft` 8 stops), stay itineraries, SightLens identify DB (landmarks + KHM/Belvedere artworks).
 2. `crates/travelcraft-core`: Geodesic routing, itineraries, SightLens pipeline, durable SQLite journal (GPS columns), chat history and settings.
-3. `crates/travelcraft-mcp`: MCP 2024-11-05 stdio server (12 tools, see `docs/TOOLS.md`). No port; hosts start the exe.
+3. `crates/travelcraft-mcp`: MCP 2024-11-05 stdio server (13 tools, see `docs/TOOLS.md`). No port; hosts start the exe.
 4. `crates/travelcraft-app`: Native GUI (`eframe`/`egui`) + CLI (`travelcraft-cli`).
 
 ---
@@ -99,7 +103,7 @@ cargo test --workspace
 - **iPhone as hotspot**: shares internet only, NOT GPS. Enter coords manually or import the Immich original (EXIF GPS preserved).
 - **Immich**: export original (not preview), paste path, source `immich-exif`.
 
-## Status — does today / next week / non-goals
+## Status - does today / next week / non-goals
 
 **Does today:** 4-crate Rust workspace (baedeker/core/mcp/app); Baedeker
 guide model (places, routes, itineraries); map app with fly-to, scale bar,
@@ -110,9 +114,9 @@ regional intel; fleet i18n (7 locales); 11 test fns; CLI verbs via
 `docs/TOOLS.md`; `just ci` (fmt + clippy-deny + test); first democraft
 recipe on fixtures.
 
-**Non-goals:** not a GIS analyzer (that's qgiscraft); no live-tile SLA —
+**Non-goals:** not a GIS analyzer (that's qgiscraft); no live-tile SLA -
 keyless OSM/Photon only.
 
-## Lineage — the Storytold craft-app pattern
+## Lineage - the Storytold craft-app pattern
 
-Storytold ArtCraft ([storytold/artcraft](https://github.com/storytold/artcraft) — "the IDE for artists") was the starting point. The 16 craft apps in the Storytold stable each ship one binary that is both the human CLI and the agent MCP server (stdio), headless-first, with `run.json` + report artifacts. That modus operandi and harness is what this repo implements; the code here is independent, the pattern is shared.
+Storytold ArtCraft ([storytold/artcraft](https://github.com/storytold/artcraft) - "the IDE for artists") was the starting point. The 16 craft apps in the Storytold stable each ship one binary that is both the human CLI and the agent MCP server (stdio), headless-first, with `run.json` + report artifacts. That modus operandi and harness is what this repo implements; the code here is independent, the pattern is shared.

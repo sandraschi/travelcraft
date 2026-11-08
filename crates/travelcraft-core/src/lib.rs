@@ -4,6 +4,7 @@
 //! and a durable travel journal (SQLite, WAL, synchronous=FULL).
 
 pub mod i18n;
+pub mod nearby;
 
 use giscraft_core::geo::{haversine_m, LonLat};
 use giscraft_core::geocode::{demo_search, Hit};
@@ -29,12 +30,30 @@ pub enum TravelCraftError {
     Gis(String),
     #[error("Invalid input: {0}")]
     Invalid(String),
+    #[error("Offline or upstream unavailable: {0}")]
+    Offline(String),
+    #[error("Unexpected upstream response: {0}")]
+    Protocol(String),
     #[error("No sight match for photo")]
     NoSight,
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 }
 
+impl TravelCraftError {
+    /// Stable machine-readable error class for front ends (`error_type`).
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::Store(_) => "store",
+            Self::NotFound(_) | Self::NoSight => "not_found",
+            Self::Gis(_) => "gis",
+            Self::Serialization(_) => "serialize",
+            Self::Invalid(_) => "invalid",
+            Self::Offline(_) => "offline",
+            Self::Protocol(_) => "protocol",
+        }
+    }
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TravelJournalEntry {
     pub entry_id: String,
@@ -173,6 +192,11 @@ impl TravelCraftEngine {
                 role TEXT NOT NULL,
                 text TEXT NOT NULL,
                 ts INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS nearby_cache (
+                cache_key TEXT PRIMARY KEY,
+                fetched_at INTEGER NOT NULL,
+                payload TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,

@@ -3867,6 +3867,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "giscraft-core",
+ "reqwest",
  "rusqlite",
  "serde",
  "serde_json",

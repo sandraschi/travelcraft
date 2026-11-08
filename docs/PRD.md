@@ -18,7 +18,7 @@ is this" questions. Sandra uses the egui app and the iPad dossier page.
 - Planning: haversine route optimiser, stay itineraries (1, 2, 3, 5, 7, 14 days).
 - SightLens: identify a sight from GPS plus a hint, log a photo to the durable
   journal (SQLite, WAL). Sight Chat: grounded offline answer, optional Ollama in the GUI.
-- Surfaces: `travelcraft` (egui), `travelcraft-cli`, `travelcraft-mcp` (12 tools,
+- Surfaces: `travelcraft` (egui), `travelcraft-cli`, `travelcraft-mcp` (13 tools,
   see TOOLS.md), `travelcraft-cli serve` (iPad dossier page), `publish` to the
   fleet Intel Hub.
 
@@ -28,17 +28,19 @@ is this" questions. Sandra uses the egui app and the iPad dossier page.
 - No live-tile SLA. Keyless OSM and Photon only.
 - No account, no cloud dependency for the core path. Offline is the thesis.
 
+- giscraft dependency: path dependency on giscraft-core for map maths (`geo::haversine_m`, `LonLat`) and the demo geocoder behind `travel_geocode` only. giscraft's Phase 0 (its `docs/PHASE0-foundations.md`, 2026-11-08, designed in another session and not merged) is additive and changes none of those, so nothing here needs to change. Travelcraft keeps its own Overpass client and cache on purpose: giscraft's overpass module is moving to attribute-preserving hits and a command registry. Revisit after that merges; `OverpassHit.props` could then replace the tag parsing in `nearby.rs`. This repo never edits giscraft.
+
 ## Gaps (honest)
 
 - Catalogue is tiny; identify matches by hint and distance, not by image.
-- No POI search ("bicycle repair shops in Vienna"): `travel_geocode` is a demo geocoder. Next candidate: `travel_nearby` over OSM Overpass via giscraft-core, online and opt-in.
+- Overpass mirror reliability is undiagnosed: from this machine overpass-api.de answers 502 or hangs, kumi.systems and private.coffee hang, while overpass.openstreetmap.fr and overpass.osm.ch answer in about a second. Cause unknown (rate limiting of this IP, routing, or the servers). Needs a proper look with timings per mirror over a day. Until then the French mirror goes first.
+- POI search works only through `travel_nearby` (online, public Overpass mirrors that are sometimes down). Place names resolve only for ten AT and JP cities; everything else needs lat and lon. No opening-hours evaluation.
 - Live transit (gtfs-mcp) and voice paths are GUI-side and need other services.
 - Offline region pack format is not designed yet.
 - egui app crate still uses unwrap and expect and is outside the deny-lints.
 
 ## Next (days, not weeks)
 
-1. `travel_nearby` (Overpass, opt-in, labelled online).
-2. Grow the catalogue and add a catalogue loader instead of compiled-in data.
-3. Bring the egui crate under the deny-lints.
-4. NSIS current-user installer and an mcpb bundle, per the fleet standard.
+1. Grow the catalogue and add a catalogue loader instead of compiled-in data.
+2. Bring the egui crate under the deny-lints.
+3. NSIS current-user installer and an mcpb bundle, per the fleet standard.

@@ -46,6 +46,29 @@ enum Commands {
         #[arg(default_value = "")]
         hint: String,
     },
+    /// Real places nearby from OpenStreetMap (online; cached 24 h, falls back to the cache)
+    Nearby {
+        /// Curated category, e.g. bicycle_repair, pharmacy, toilets, cafe
+        category: Option<String>,
+        #[arg(long)]
+        key: Option<String>,
+        #[arg(long)]
+        value: Option<String>,
+        #[arg(long, allow_hyphen_values = true)]
+        lat: Option<f64>,
+        #[arg(long, allow_hyphen_values = true)]
+        lon: Option<f64>,
+        /// Major AT or JP city name, e.g. Wien, Graz, Tokyo, Kyoto
+        #[arg(long)]
+        place: Option<String>,
+        #[arg(long)]
+        radius: Option<u32>,
+        #[arg(long)]
+        limit: Option<usize>,
+        /// Skip a fresh cache entry and query live
+        #[arg(long)]
+        refresh: bool,
+    },
     /// List the durable travel journal, newest first
     Journal {
         #[arg(default_value_t = 20)]
@@ -109,6 +132,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         } => {
             let res = engine.sightlens_capture(&photo, Some(lat), Some(lon), &gps_source, &hint)?;
             println!("{}", serde_json::to_string_pretty(&res)?);
+        }
+        Commands::Nearby {
+            category,
+            key,
+            value,
+            lat,
+            lon,
+            place,
+            radius,
+            limit,
+            refresh,
+        } => {
+            let req = travelcraft_core::nearby::NearbyRequest {
+                category,
+                key,
+                value,
+                lat,
+                lon,
+                place,
+                radius_m: radius,
+                limit,
+                refresh,
+            };
+            println!("{}", serde_json::to_string_pretty(&engine.nearby(&req)?)?);
         }
         Commands::Journal { limit } => {
             println!(
