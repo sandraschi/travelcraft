@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>TravelCraft v0.2.0 — Technical Brochure &amp; Operator Handbook</title>
+  <meta name="author" content="Sandra Schipal" />
+  <style>
+    @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+      color: #0f172a;
+      background: #ffffff;
+      line-height: 1.55;
+      font-size: 10.2pt;
+      margin: 0;
+      padding: 0;
+    }
+    .cover {
+      background: linear-gradient(145deg, #090d16 0%, #0f172a 55%, #0c4a6e 100%);
+      color: #f8fafc;
+      padding: 44px 40px 48px 40px;
+      border-radius: 14px;
+      margin-bottom: 28px;
+      page-break-after: always;
+    }
+    .cover-kicker {
+      display: inline-block;
+      background: rgba(56, 189, 248, 0.18);
+      border: 1px solid #38bdf8;
+      color: #7dd3fc;
+      font-size: 9pt;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 999px;
+      margin-bottom: 18px;
+    }
+    .cover h1 {
+      font-size: 32pt;
+      line-height: 1.1;
+      margin: 0 0 12px 0;
+      color: #ffffff;
+      letter-spacing: -0.02em;
+    }
+    .cover h2 {
+      font-size: 13.5pt;
+      font-weight: 400;
+      color: #bae6fd;
+      margin: 0 0 26px 0;
+    }
+    .cover-grid {
+      display: table;
+      width: 100%;
+      margin-top: 22px;
+      border-collapse: separate;
+      border-spacing: 10px;
+    }
+    .cover-stat {
+      display: table-cell;
+      width: 25%;
+      background: rgba(15, 23, 42, 0.72);
+      border: 1px solid rgba(125, 211, 252, 0.35);
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+    }
+    .cover-stat .num {
+      font-size: 18pt;
+      font-weight: 800;
+      color: #38bdf8;
+      display: block;
+    }
+    .cover-stat .lbl {
+      font-size: 8pt;
+      color: #cbd5e1;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .cover-footer {
+      margin-top: 28px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(148, 163, 184, 0.3);
+      font-size: 9pt;
+      color: #94a3b8;
+    }
+    h2.section-title {
+      font-size: 15pt;
+      color: #0c4a6e;
+      border-bottom: 2px solid #0284c7;
+      padding-bottom: 5px;
+      margin-top: 24px;
+      margin-bottom: 10px;
+    }
+    h3 {
+      font-size: 11.5pt;
+      color: #0f172a;
+      margin-top: 16px;
+      margin-bottom: 6px;
+    }
+    p { margin: 0 0 9px 0; }
+    ul { margin: 6px 0 12px 0; padding-left: 20px; }
+    li { margin-bottom: 4px; }
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 18px 0;
+      font-size: 9pt;
+    }
+    table.data-table th {
+      background: #0f172a;
+      color: #f8fafc;
+      text-align: left;
+      padding: 6px 8px;
+      font-weight: 700;
+    }
+    table.data-table td {
+      padding: 5px 8px;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: top;
+    }
+    table.data-table tr:nth-child(even) td { background: #f8fafc; }
+    code, pre {
+      font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
+      font-size: 8.8pt;
+    }
+    code {
+      background: #e2e8f0;
+      color: #0f172a;
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 11px 14px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      line-height: 1.45;
+    }
+    .page-break { page-break-before: always; }
+  </style>
+</head>
+<body>
+  <div class="cover">
+    <div class="cover-kicker">ArtCraft Fleet Technical Brochure &middot; Series #11</div>
+    <h1>TravelCraft v0.2.0</h1>
+    <h2>TravelCraft is an ArtCraft-tier chrono-cartography studio and local-first travel guide platform that reinvents the classic 19th-century Baedeker guide for the 2030s.</h2>
+
+    <svg viewBox="0 0 760 165" width="100%" height="165" xmlns="http://www.w3.org/2000/svg" style="margin: 10px 0 16px 0;">
+      <rect x="2" y="2" width="756" height="161" rx="12" fill="#0b1322" stroke="#38bdf8" stroke-width="1.5"/>
+      <rect x="24" y="22" width="200" height="120" rx="8" fill="#1e293b" stroke="#67e8f9" stroke-width="1.5"/>
+      <text x="124" y="52" fill="#67e8f9" font-size="13" font-weight="bold" text-anchor="middle">L3: travelcraft-app</text>
+      <text x="124" y="76" fill="#e2e8f0" font-size="10" text-anchor="middle">Native eframe/egui Studio</text>
+      <text x="124" y="98" fill="#94a3b8" font-size="9.5" text-anchor="middle">In-Process Core Dispatch</text>
+      <text x="124" y="118" fill="#34d399" font-size="9.5" text-anchor="middle">Zero HTTP / Port Overhead</text>
+
+      <rect x="280" y="22" width="200" height="120" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+      <text x="380" y="52" fill="#38bdf8" font-size="13" font-weight="bold" text-anchor="middle">L2: travelcraft-mcp</text>
+      <text x="380" y="76" fill="#e2e8f0" font-size="10" text-anchor="middle">CLI + Stdio MCP 2024-11-05</text>
+      <text x="380" y="98" fill="#94a3b8" font-size="9.5" text-anchor="middle">Human Verbs &amp; Agent Tools</text>
+      <text x="380" y="118" fill="#34d399" font-size="9.5" text-anchor="middle">Deterministic JSON Output</text>
+
+      <rect x="536" y="22" width="200" height="120" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="2"/>
+      <text x="636" y="52" fill="#34d399" font-size="13" font-weight="bold" text-anchor="middle">L1: travelcraft-core</text>
+      <text x="636" y="76" fill="#e2e8f0" font-size="10" text-anchor="middle">Single dispatch() Engine</text>
+      <text x="636" y="98" fill="#fcd34d" font-size="9.5" text-anchor="middle">deny(unwrap/expect/panic)</text>
+      <text x="636" y="118" fill="#94a3b8" font-size="9.5" text-anchor="middle">Pre-Write Backups &amp; Guards</text>
+
+      <line x1="224" y1="82" x2="280" y2="82" stroke="#38bdf8" stroke-width="2"/>
+      <line x1="480" y1="82" x2="536" y2="82" stroke="#10b981" stroke-width="2"/>
+    </svg>
+
+    <div class="cover-grid">
+      <div class="cover-stat">
+        <span class="num">v0.2.0</span>
+        <span class="lbl">Release Version</span>
+      </div>
+      <div class="cover-stat">
+        <span class="num">4 Crates</span>
+        <span class="lbl">Workspace Tiers</span>
+      </div>
+      <div class="cover-stat">
+        <span class="num">6771</span>
+        <span class="lbl">Pure-Rust LOC</span>
+      </div>
+      <div class="cover-stat">
+        <span class="num">6-Gate</span>
+        <span class="lbl">ArtCraft Verified</span>
+      </div>
+    </div>
+
+    <div class="cover-footer">
+      <strong>Repository:</strong> <code>D:\Dev\repos\travelcraft</code> &middot;
+      <strong>Standard:</strong> <code>CRAFT_BROCHURE_STANDARD.md</code> &middot;
+      <strong>Compiled via:</strong> <code>BookCraft v0.5.0</code>
+    </div>
+  </div>
+
+  <p><strong>TravelCraft</strong> is an ArtCraft-tier chrono-cartography studio and local-first travel guide platform that reinvents the classic 19th-century Baedeker guide for the 2030s.</p>
+<p>Features:</p>
+<ul>
+<li><strong>Chrono-Cartographic Layers</strong>: Tokaido 1603 vs Neo-Tokyo; Hallstatt 800 BC vs Habsburg Vienna 1365.</li>
+<li><strong>Sensory Atmosphere Profiles</strong>: Acoustic, architectural, olfactory, light records per waypoint.</li>
+<li><strong>Local Storage</strong>: Offline SQLite journal + GPS-tagged photos via <code>DatabaseCraft</code>.</li>
+<li><strong>Stay-Length Itineraries</strong>: 1/2/3/5/7/14-day Baedeker day-plans per edition (Itineraries tab, <code>travelcraft-cli itinerary AT 3</code>).</li>
+<li><strong>SightLens Camera</strong>: Point laptop at Stephansdom and click Identify, or load an Immich export. Offline GPS + hint matching (Stephansdom, KHM Caravaggio Rosenkranzmadonna, Klimt Kiss, Bruegel Tower) renders a beautiful dossier and logs it with GPS source.</li>
+<li><strong>Sight Chat (text + voice)</strong>: After identifying the Caravaggio, ask anything. Grounded in info blob + qgiscraft map blob + GTFS transit blob; online via Ollama <code>:11434</code> when reachable, else OFFLINE BLOB extractive answer. Voice out via Windows SAPI Speak or speech-mcp <code>:10909</code> TTS wav.</li>
+<li><strong>Maps + Transit blobs</strong>: qgiscraft slippy tiles/scale/URLs (<code>:11254</code>) + preloaded Wiener Linien/JR snapshot; live departures via gtfs-mcp <code>:10913</code>.</li>
+<li><strong>High-Contrast Map</strong>: Mouse-wheel zoom + drag pan, large type, ink/paper palette.</li>
+<li><strong>FastMCP Protocol</strong>: Port <code>14129</code>.</li>
+</ul>
+<p>Vendored offline sources (see <code>crates/travelcraft-baedeker/src/lib.rs SOURCES</code>):</p>
+<ul>
+<li><code>japanophile-mcp/assets/knowledge/japan/travel.html</code> - JR Pass, konbini, budget, etiquette, regions.</li>
+<li><code>vienna-life-assistant</code> <code>vienna_tips</code> (coffee/music/museum), <code>restaurants_data</code> Beisl rule, <code>culture_data</code> (KHM, Belvedere, Stephansplatz).</li>
+</ul>
+<p>---</p>
+<h2 class="section-title">Who uses this, and why not just open Google Maps</h2>
+<p>Travelcraft is an offline, agent-native travel primer. The point is not a better map. It is that an agent in your IDE (Claude Desktop, Claude Code, Cursor, Zed, Antigravity, anything that speaks MCP) can plan, explain and keep a journal for a trip without a browser, an account, an API key or a network on the core path.</p>
+<table class="data-table"><thead><tr>
+<th>Who</th>
+<th>Why not Google Maps</th>
+<th>Typical prompt</th>
+<th>Works today</th>
+</tr></thead><tbody>
+<tr>
+<td>Developer or power user with an agentic IDE</td>
+<td>Stays in the tool, scriptable, no account, nothing leaves the machine</td>
+<td>&quot;Plan 3 days in Austria and put the stops in a table&quot;</td>
+<td>Yes, Austria and Japan only</td>
+</tr>
+<tr>
+<td>Traveller with bad signal (tunnels, Tyrol, flights)</td>
+<td>Core data is compiled in, no network needed</td>
+<td>&quot;What is the story of Stephansdom? I have no signal&quot;</td>
+<td>Yes, small catalogue</td>
+</tr>
+<tr>
+<td>Culture and history traveller</td>
+<td>Places are placed in time (chrono-waypoints), not just on a map</td>
+<td>&quot;What am I looking at at 48.2039, 16.3619?&quot;</td>
+<td>Yes, a handful of sights</td>
+</tr>
+<tr>
+<td>Japan first-timer</td>
+<td>Curated primer (JR Pass, konbini, etiquette) instead of ten browser tabs</td>
+<td>&quot;Plan a Tokaido route through Japan&quot;</td>
+<td>Yes, some text is German</td>
+</tr>
+<tr>
+<td>Private journal keeper</td>
+<td>Journal is a local SQLite file, survives crashes, never uploaded</td>
+<td>&quot;Log: Cafe Berg, rain, Melange, wet wool&quot;</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Builder of craft apps</td>
+<td>Small reference for the ArtCraft pattern (engine, CLI, MCP, egui)</td>
+<td>read <code>docs/PRD.md</code> and <code>AGENTS.md</code></td>
+<td>Yes</td>
+</tr>
+</tbody></table>
+<h3>Prompts that work today</h3>
+<table class="data-table"><thead><tr>
+<th>You say</th>
+<th>Tool the agent calls</th>
+<th>You get</th>
+</tr></thead><tbody>
+<tr>
+<td>&quot;Which country editions are there?&quot;</td>
+<td><code>travel_countries</code></td>
+<td>Austria and Japan editions</td>
+</tr>
+<tr>
+<td>&quot;Plan 3 days in Austria&quot;</td>
+<td><code>travel_itinerary</code> (AT, 3)</td>
+<td>Day-by-day plan (1, 2, 3, 5, 7 or 14 days)</td>
+</tr>
+<tr>
+<td>&quot;Best route through Japan, oldest sight first&quot;</td>
+<td><code>travel_plan_route</code> (JP)</td>
+<td>Chrono-ordered legs, distance, hours, carbon estimate</td>
+</tr>
+<tr>
+<td>&quot;What am I looking at near Stephansplatz?&quot;</td>
+<td><code>travel_identify_sight</code></td>
+<td>Sight dossier from the offline catalogue</td>
+</tr>
+<tr>
+<td>&quot;How do I get to the Caravaggio in the KHM?&quot;</td>
+<td><code>travel_sight_chat</code></td>
+<td>Grounded answer plus map and transit snapshot (not live departures)</td>
+</tr>
+<tr>
+<td>&quot;I photographed the Klimt Kiss, log it&quot;</td>
+<td><code>travel_sightlens_capture</code></td>
+<td>Identification plus a durable journal entry</td>
+</tr>
+<tr>
+<td>&quot;Log: Cafe Berg, rain, Melange&quot;</td>
+<td><code>travel_journal_add</code></td>
+<td>Saved entry id</td>
+</tr>
+<tr>
+<td>&quot;Show my last 10 journal entries&quot;</td>
+<td><code>travel_journal_list</code></td>
+<td>Entries, newest first</td>
+</tr>
+<tr>
+<td>&quot;Coordinates for Wien&quot;</td>
+<td><code>travel_geocode</code></td>
+<td>Demo geocoder hit (a handful of places only)</td>
+</tr>
+<tr>
+<td>&quot;Vienna bicycle repair shops&quot;</td>
+<td><code>travel_nearby</code> (bicycle_repair, Wien)</td>
+<td>Nearest shops and repair stations from OpenStreetMap with address, phone, raw opening hours, OSM link. <strong>Online</strong>, cached 24 h</td>
+</tr>
+<tr>
+<td>&quot;Public toilets or drinking water near me&quot;</td>
+<td><code>travel_nearby</code> (toilets, drinking_water, lat/lon)</td>
+<td>Same, from OSM</td>
+</tr>
+<tr>
+<td>&quot;Which of these lack opening hours in OSM?&quot;</td>
+<td><code>travel_nearby</code> <code>missing_tags</code> plus <code>osm_edit_url</code></td>
+<td>A to-do list for a mapper; travelcraft itself never edits OSM</td>
+</tr>
+</tbody></table>
+<h3>Not built yet (do not expect these)</h3>
+<table class="data-table"><thead><tr>
+<th>You say</th>
+<th>Why it does not work today</th>
+<th>What it would take</th>
+</tr></thead><tbody>
+<tr>
+<td>&quot;Is it open now?&quot;, prices, booking</td>
+<td><code>travel_nearby</code> returns the raw <code>opening_hours</code> tag but nothing evaluates it, and there is no price or booking data</td>
+<td>An opening-hours evaluator; booking is out of scope</td>
+</tr>
+<tr>
+<td>&quot;Another country&quot;</td>
+<td>Only Austria and Japan editions exist</td>
+<td>New editions in <code>travelcraft-baedeker</code></td>
+</tr>
+<tr>
+<td>&quot;Which painting is in this photo?&quot;</td>
+<td>Identification uses GPS plus a hint, not the image</td>
+<td>An image model; not planned</td>
+</tr>
+<tr>
+<td>Contributing back to OpenStreetMap</td>
+<td>Travelcraft reads OSM tiles, it does not edit OSM</td>
+<td>A mapper workflow belongs in giscraft, not here</td>
+</tr>
+</tbody></table>
+<p>Network use is limited to <code>travel_nearby</code> (and the GUI map tiles). Overpass data comes from public instances that are sometimes slow or down; travelcraft tries several mirrors, caches answers for 24 h and says so when it falls back to an old answer. Coverage and opening hours are only as good as OpenStreetMap.</p>
+<p>Journal, chat history and settings live in <code>%LOCALAPPDATA%\travelcraft\travelcraft.db</code> (override with <code>TRAVELCRAFT_DATA</code>).</p>
+<h2 class="section-title">Workspace Structure</h2>
+<p>1. <code>crates/travelcraft-baedeker</code>: Editions (<code>JapanCraft</code> 9 stops, <code>AustriaCraft</code> 8 stops), stay itineraries, SightLens identify DB (landmarks + KHM/Belvedere artworks).</p>
+<p>2. <code>crates/travelcraft-core</code>: Geodesic routing, itineraries, SightLens pipeline, durable SQLite journal (GPS columns), chat history and settings.</p>
+<p>3. <code>crates/travelcraft-mcp</code>: MCP 2024-11-05 stdio server (13 tools, see <code>docs/TOOLS.md</code>). No port; hosts start the exe.</p>
+<p>4. <code>crates/travelcraft-app</code>: Native GUI (<code>eframe</code>/<code>egui</code>) + CLI (<code>travelcraft-cli</code>).</p>
+<p>---</p>
+<h2 class="section-title">Verification &amp; Usage</h2>
+<pre>
+# Run test suite
+cargo test --workspace
+
+# Headless smoke test (JP route + AT itinerary + Stephansdom + Caravaggio)
+./target/debug/travelcraft.exe --smoke
+
+# CLI
+./target/debug/travelcraft-cli.exe plan JP
+./target/debug/travelcraft-cli.exe itinerary AT 3
+./target/debug/travelcraft-cli.exe identify 48.2085 16.3738 stephansdom
+./target/debug/travelcraft-cli.exe identify 48.2039 16.3619 caravaggio
+./target/debug/travelcraft-cli.exe capture immich-export.jpg --gps-source immich-exif --lat 48.2085 --lon 16.3738 --hint stephansdom
+./target/debug/travelcraft-cli.exe chat --about caravaggio --question &quot;Who painted the Rosenkranzmadonna and where is it?&quot;
+</pre>
+<h3>Sight Chat notes</h3>
+<ul>
+<li><strong>Text</strong>: Sight Chat tab, context pill shows current sight. Ask anything about the dossier; history (last 6) kept for follow-ups.</li>
+<li><strong>Online LLM</strong>: Ollama <code>http://127.0.0.1:11434/api/chat</code> (model field, default <code>qwen2.5:7b</code>). System prompt = info blob + map + transit + sources. If unreachable, OFFLINE BLOB extractive answer is returned and labeled.</li>
+<li><strong>Voice out</strong>: <code>Speak last answer</code> = Windows SAPI offline; <code>Save last answer (speech-mcp wav)</code> = POST <code>:10909/api/v1/tts</code> to temp wav.</li>
+<li><strong>Voice in</strong>: type/paste transcript (mic path: speech-mcp <code>:10909</code> web UI + FunASR sidecar <code>:10914</code>; record wav then paste transcript here in v1).</li>
+<li><strong>Maps</strong>: every prompt carries <code>MAP qgiscraft Z16 tile + OSM URL + scale + Z8 bbox count</code> (offline math, live tiles via qgiscraft <code>:11254</code>).</li>
+<li><strong>Transit</strong>: preloaded blob per sight (Stephansdom U1/U3, KHM D/1/2/71 + U3, Belvedere D/71, Schoenbrunn U4, JP JR/IC hubs) sourced from <code>gtfs-mcp/data/vienna|wien|default</code>; live departures via gtfs-mcp <code>:10913</code>.</li>
+</ul>
+<h3>SightLens GPS notes</h3>
+<ul>
+<li><strong>Windows location</strong>: Settings &gt; Privacy &gt; Location ON; browser/OS prompt once.</li>
+<li><strong>iPhone as hotspot</strong>: shares internet only, NOT GPS. Enter coords manually or import the Immich original (EXIF GPS preserved).</li>
+<li><strong>Immich</strong>: export original (not preview), paste path, source <code>immich-exif</code>.</li>
+</ul>
+<h2 class="section-title">Status - does today / next week / non-goals</h2>
+<p><strong>Does today:</strong> 4-crate Rust workspace (baedeker/core/mcp/app); Baedeker</p>
+<p>guide model (places, routes, itineraries); map app with fly-to, scale bar,</p>
+<p>regional intel; fleet i18n (7 locales); 11 test fns; CLI verbs via</p>
+<p><code>travelcraft --help</code>.</p>
+<p><strong>Next week:</strong> <code>docs/PRD.md</code> (model + verbs + qgiscraft boundary) plus</p>
+<p><code>docs/TOOLS.md</code>; <code>just ci</code> (fmt + clippy-deny + test); first democraft</p>
+<p>recipe on fixtures.</p>
+<p><strong>Non-goals:</strong> not a GIS analyzer (that&#39;s qgiscraft); no live-tile SLA -</p>
+<p>keyless OSM/Photon only.</p>
+<h2 class="section-title">Lineage - the Storytold craft-app pattern</h2>
+<p>Storytold ArtCraft (storytold/artcraft - &quot;the IDE for artists&quot;) was the starting point. The 16 craft apps in the Storytold stable each ship one binary that is both the human CLI and the agent MCP server (stdio), headless-first, with <code>run.json</code> + report artifacts. That modus operandi and harness is what this repo implements; the code here is independent, the pattern is shared.</p>
+
+  <div class="page-break"></div><h2 class="section-title">Product Requirements &amp; Architecture Specification</h2><h2 class="section-title">What it is</h2>
+<p>A local-first, offline travel primer for Austria and Japan in the Baedeker</p>
+<p>spirit: places placed in time (chrono-waypoints), what they feel like (sensory</p>
+<p>atmosphere), how to route between them, and what to know on the ground. Pure</p>
+<p>Rust, ArtCraft pattern: one engine, three front ends (CLI, MCP stdio, egui app).</p>
+<h2 class="section-title">Users</h2>
+<p>Sandra and her agents. Agents use the MCP tools to plan stays and answer &quot;what</p>
+<p>is this&quot; questions. Sandra uses the egui app and the iPad dossier page.</p>
+<h2 class="section-title">Today</h2>
+<ul>
+<li>Editions: Japan (9 stops), Austria (8 stops), each with a knowledge tree.</li>
+<li>Planning: haversine route optimiser, stay itineraries (1, 2, 3, 5, 7, 14 days).</li>
+<li>SightLens: identify a sight from GPS plus a hint, log a photo to the durable</li>
+</ul>
+<p>journal (SQLite, WAL). Sight Chat: grounded offline answer, optional Ollama in the GUI.</p>
+<ul>
+<li>Surfaces: <code>travelcraft</code> (egui), <code>travelcraft-cli</code>, <code>travelcraft-mcp</code> (13 tools,</li>
+</ul>
+<p>see TOOLS.md), <code>travelcraft-cli serve</code> (iPad dossier page), <code>publish</code> to the</p>
+<p>fleet Intel Hub.</p>
+<h2 class="section-title">Boundaries</h2>
+<ul>
+<li>Not a GIS analyzer. Map maths and the demo geocoder come from giscraft-core.</li>
+<li>No live-tile SLA. Keyless OSM and Photon only.</li>
+<li>No account, no cloud dependency for the core path. Offline is the thesis.</li>
+</ul>
+<ul>
+<li>giscraft dependency: path dependency on giscraft-core for map maths (<code>geo::haversine_m</code>, <code>LonLat</code>) and the demo geocoder behind <code>travel_geocode</code> only. giscraft&#39;s Phase 0 (its <code>docs/PHASE0-foundations.md</code>, 2026-11-08, designed in another session and not merged) is additive and changes none of those, so nothing here needs to change. Travelcraft keeps its own Overpass client and cache on purpose: giscraft&#39;s overpass module is moving to attribute-preserving hits and a command registry. Revisit after that merges; <code>OverpassHit.props</code> could then replace the tag parsing in <code>nearby.rs</code>. This repo never edits giscraft.</li>
+</ul>
+<h2 class="section-title">Gaps (honest)</h2>
+<ul>
+<li>Catalogue is tiny; identify matches by hint and distance, not by image.</li>
+<li>Overpass mirror reliability is undiagnosed: from this machine overpass-api.de answers 502 or hangs, kumi.systems and private.coffee hang, while overpass.openstreetmap.fr and overpass.osm.ch answer in about a second. Cause unknown (rate limiting of this IP, routing, or the servers). Needs a proper look with timings per mirror over a day. Until then the French mirror goes first.</li>
+<li>POI search works only through <code>travel_nearby</code> (online, public Overpass mirrors that are sometimes down). Place names resolve only for ten AT and JP cities; everything else needs lat and lon. No opening-hours evaluation.</li>
+<li>Live transit (gtfs-mcp) and voice paths are GUI-side and need other services.</li>
+<li>Offline region pack format is not designed yet.</li>
+<li>egui app crate still uses unwrap and expect and is outside the deny-lints.</li>
+</ul>
+<h2 class="section-title">Next (days, not weeks)</h2>
+<p>1. Grow the catalogue and add a catalogue loader instead of compiled-in data.</p>
+<p>2. Bring the egui crate under the deny-lints.</p>
+<p>3. NSIS current-user installer and an mcpb bundle, per the fleet standard.</p>
+
+  <div class="page-break"></div><h2 class="section-title">Complete MCP Tool &amp; CLI Verb Reference</h2><p>Server: <code>travelcraft-mcp</code> (MCP 2024-11-05, line-delimited JSON-RPC on stdio).</p>
+<p>stdout carries protocol only, logs go to stderr. Notifications get no reply.</p>
+<p>Errors: <code>{success:false, error, error_type}</code> with <code>isError: true</code>.</p>
+<p>State is durable: journal, chat history and settings live in a SQLite file (WAL, synchronous=FULL),</p>
+<p><code>%LOCALAPPDATA%\travelcraft\travelcraft.db</code> or <code>$TRAVELCRAFT_DATA\travelcraft.db</code>. A crash loses nothing</p>
+<p>that was acknowledged. If the database cannot be opened the server exits with an error; it does not</p>
+<p>fall back to memory.</p>
+<table class="data-table"><thead><tr>
+<th>Tool</th>
+<th>Arguments</th>
+<th>Returns</th>
+</tr></thead><tbody>
+<tr>
+<td><code>travel_status</code></td>
+<td>none</td>
+<td>editions, persistence flag, db path, journal count, vendored source list</td>
+</tr>
+<tr>
+<td><code>travel_countries</code></td>
+<td>none</td>
+<td>all country editions (large, about 14 KB)</td>
+</tr>
+<tr>
+<td><code>travel_inspect</code></td>
+<td><code>country</code> (AT, JP)</td>
+<td>one edition: waypoints, atmosphere, curated routes</td>
+</tr>
+<tr>
+<td><code>travel_knowledge_tree</code></td>
+<td><code>country</code></td>
+<td>primer topic tree (large, about 18 KB for JP)</td>
+</tr>
+<tr>
+<td><code>travel_plan_route</code></td>
+<td><code>country</code></td>
+<td>chrono-optimised route: legs, distance, hours, carbon, map tiles</td>
+</tr>
+<tr>
+<td><code>travel_itinerary</code></td>
+<td><code>country</code>, <code>days</code> (1, 2, 3, 5, 7, 14; default 3)</td>
+<td>day-by-day plan</td>
+</tr>
+<tr>
+<td><code>travel_identify_sight</code></td>
+<td><code>lat</code>, <code>lon</code>, <code>hint</code> (all optional)</td>
+<td>sight or artwork from the offline catalogue</td>
+</tr>
+<tr>
+<td><code>travel_sight_chat</code></td>
+<td><code>question</code>; optional <code>about</code>, <code>lat</code>, <code>lon</code></td>
+<td>offline answer plus system prompt, map blob, transit blob</td>
+</tr>
+<tr>
+<td><code>travel_sightlens_capture</code></td>
+<td><code>photo</code>; optional <code>gps_source</code>, <code>lat</code>, <code>lon</code>, <code>hint</code></td>
+<td>identification plus a durable journal entry</td>
+</tr>
+<tr>
+<td><code>travel_journal_add</code></td>
+<td><code>reflection</code>; optional <code>sensory_notes</code>, <code>waypoint_id</code>, <code>photo</code>, <code>lat</code>, <code>lon</code>, <code>gps_source</code></td>
+<td>new entry id; text capped at 16000 chars</td>
+</tr>
+<tr>
+<td><code>travel_journal_list</code></td>
+<td>optional <code>limit</code> (1 to 1000, default 20)</td>
+<td>entries, newest first</td>
+</tr>
+<tr>
+<td><code>travel_geocode</code></td>
+<td><code>query</code></td>
+<td>offline demo geocoder hit (giscraft-core); echoes the query at a fixed Wien point, not a place index</td>
+</tr>
+<tr>
+<td><code>travel_nearby</code></td>
+<td><code>category</code> or <code>key</code>+<code>value</code>; <code>lat</code>+<code>lon</code> or <code>place</code> (major AT/JP city); optional <code>radius_m</code> (50 to 5000, default 1500), <code>limit</code> (1 to 50, default 15), <code>refresh</code></td>
+<td><strong>online, opt-in.</strong> Places from OpenStreetMap via Overpass, nearest first, with OSM and edit links, raw opening_hours, <code>missing_tags</code>, ODbL attribution, and <code>source</code> (overpass, cache, stale_cache)</td>
+</tr>
+</tbody></table>
+<p>Network: <code>travel_nearby</code> is the only tool that uses it. Categories: bicycle_repair, bicycle_rental, pharmacy, doctors, hospital, atm, cafe, restaurant, bakery, supermarket, toilets, drinking_water, ev_charging, post_office, museum, viewpoint, hotel, train_station; or any fenced OSM key and value. No raw Overpass QL is accepted. OSM text is untrusted data: control characters are stripped and fields capped at 200 chars. Answers are cached 24 h in the database; if the live query fails, the last cached answer comes back with <code>stale: true</code> and a warning, and with no cache the call fails with <code>error_type: offline</code>. Public mirrors are tried in order (overpass.openstreetmap.fr, overpass-api.de, kumi.systems, private.coffee); <code>TRAVELCRAFT_OVERPASS_URL</code> pins one endpoint. <code>truncated: true</code> means Overpass hit the 300-element fetch cap, so shrink the radius. Opening hours are returned raw and never evaluated.</p>
+<p>Limits today: the catalogue is small (Stephansdom, KHM Caravaggio, Klimt Kiss</p>
+<p>and the edition waypoints). <code>travel_sight_chat</code> does not call an LLM; it returns</p>
+<p>the grounding for the caller&#39;s own model. Live transit and live map tiles are</p>
+<p>not fetched by the MCP server.</p>
+<p>Wire it in a host (Claude Desktop shape):</p>
+<pre>
+{ &quot;mcpServers&quot;: { &quot;travelcraft&quot;: { &quot;command&quot;: &quot;D:\\Dev\\repos\\travelcraft\\target\\release\\travelcraft-mcp.exe&quot; } } }
+</pre>
+
+</body>
+</html>
