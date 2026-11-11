@@ -169,11 +169,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             lat,
             lon,
         } => {
-            let sight = engine.identify_sight(lat, lon, &about).unwrap_or_else(|_| {
-                engine
-                    .identify_sight(48.2039, 16.3619, "caravaggio")
-                    .expect("caravaggio blob")
-            });
+            let sight = engine
+                .identify_sight(lat, lon, &about)
+                .or_else(|_| engine.identify_sight(48.2039, 16.3619, "caravaggio"))
+                .unwrap_or_else(|_| travelcraft_baedeker::SightHit {
+                    id: "fallback_sight".to_string(),
+                    name: "Madonna of the Rosary - Caravaggio".to_string(),
+                    kind: travelcraft_baedeker::SightKind::Artwork,
+                    country_code: "AT".to_string(),
+                    lat: 48.2039,
+                    lon: 16.3619,
+                    distance_m: 0.0,
+                    confidence: 0.95,
+                    headline: "Caravaggio in the KHM".to_string(),
+                    body: "Caravaggio in the KHM".to_string(),
+                    practical: "KHM Gemaldegalerie".to_string(),
+                });
             let ctx = engine.sight_chat_context(&sight);
             let out = serde_json::json!({
                 "sight": sight.name,
@@ -192,10 +203,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let sight = engine
                 .identify_sight(48.2039, 16.3619, &about)
                 .or_else(|_| engine.identify_sight(48.2085, 16.3738, &about))
-                .unwrap_or_else(|_| {
-                    engine
-                        .identify_sight(48.2039, 16.3619, "caravaggio")
-                        .expect("caravaggio blob")
+                .or_else(|_| engine.identify_sight(48.2039, 16.3619, "caravaggio"))
+                .unwrap_or_else(|_| travelcraft_baedeker::SightHit {
+                    id: "fallback_sight".to_string(),
+                    name: "Madonna of the Rosary - Caravaggio".to_string(),
+                    kind: travelcraft_baedeker::SightKind::Artwork,
+                    country_code: "AT".to_string(),
+                    lat: 48.2039,
+                    lon: 16.3619,
+                    distance_m: 0.0,
+                    confidence: 0.95,
+                    headline: "Caravaggio in the KHM".to_string(),
+                    body: "Caravaggio in the KHM".to_string(),
+                    practical: "KHM Gemaldegalerie".to_string(),
                 });
             let ctx = engine.sight_chat_context(&sight);
             let html = mobile_sight_page(&engine, &sight);

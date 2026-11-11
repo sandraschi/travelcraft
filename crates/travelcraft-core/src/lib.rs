@@ -17,7 +17,7 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use thiserror::Error;
 use travelcraft_baedeker::{
     offline_chat_answer, transit_blob_for_sight, BaedekerCatalog, ChronoWaypoint, CountryEdition,
-    SightChatContext, SightHit, StayItinerary,
+    RegionPack, SightChatContext, SightHit, StayItinerary,
 };
 
 #[derive(Error, Debug)]
@@ -201,6 +201,13 @@ impl TravelCraftEngine {
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS region_packs (
+                pack_id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                country_code TEXT NOT NULL,
+                version TEXT NOT NULL,
+                payload TEXT NOT NULL
             );",
         )
         .map_err(db_err)?;
@@ -232,6 +239,69 @@ impl TravelCraftEngine {
     /// Retrieve sovereign knowledge tree (hierarchical categorized intel).
     pub fn get_knowledge_tree(&self, country_code: &str) -> travelcraft_baedeker::KnowledgeTree {
         BaedekerCatalog::get_knowledge_tree(country_code)
+    }
+
+    /// Import or update an offline region pack into durable storage.
+    pub fn import_region_pack(&self, pack: &RegionPack) -> Result<(), TravelCraftError> {
+        let conn = self.lock();
+        let payload = pack.to_json_string()?;
+        conn.execute(
+            "INSERT OR REPLACE INTO region_packs (pack_id, title, country_code, version, payload)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                &pack.pack_id,
+                &pack.title,
+                &pack.country_code,
+                &pack.version,
+                &payload
+            ],
+        )
+        .map_err(db_err)?;
+        Ok(())
+    }
+
+    /// List all dynamically imported region packs.
+    pub fn list_region_packs(&self) -> Result<Vec<RegionPack>, TravelCraftError> {
+        let conn = self.lock();
+        let mut stmt = conn
+            .prepare("SELECT payload FROM region_packs ORDER BY title ASC")
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map([], |row| {
+                let payload: String = row.get(0)?;
+                Ok(payload)
+            })
+            .map_err(db_err)?;
+        let mut out = Vec::new();
+        for r in rows {
+            let payload = r.map_err(db_err)?;
+            if let Ok(pack) = RegionPack::from_json_str(&payload) {
+                out.push(pack);
+            }
+        }
+        Ok(out)
+    }
+
+    /// Load any `.json` region packs present in `dir`.
+    pub fn load_region_packs_from_dir(&self, dir: &Path) -> Result<usize, TravelCraftError> {
+        if !dir.exists() || !dir.is_dir() {
+            return Ok(0);
+        }
+        let entries = std::fs::read_dir(dir).map_err(db_err)?;
+        let mut count = 0;
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("json") {
+                if let Ok(content) = std::fs::read_to_string(&path) {
+                    if let Ok(pack) = RegionPack::from_json_str(&content) {
+                        if self.import_region_pack(&pack).is_ok() {
+                            count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(count)
     }
 
     pub fn plan_optimized_route(

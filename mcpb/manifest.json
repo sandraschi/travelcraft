@@ -1,0 +1,42 @@
+{
+  "manifest_version": "0.2",
+  "name": "travelcraft",
+  "display_name": "TravelCraft",
+  "version": "0.2.0",
+  "description": "Local-first, offline Baedeker travel primer for Austria and Japan: chrono-cartography, sensory atmosphere, route optimization, and SightLens.",
+  "author": {
+    "name": "Sandra Schipal",
+    "url": "https://github.com/sandraschi"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sandraschi/travelcraft"
+  },
+  "license": "MIT OR Apache-2.0",
+  "server": {
+    "type": "binary",
+    "entry_point": "travelcraft-mcp.exe",
+    "mcp_config": {
+      "command": "${__dirname}/travelcraft-mcp.exe",
+      "args": []
+    }
+  },
+  "compatibility": {
+    "platforms": ["win32", "darwin", "linux"]
+  },
+  "tools": [
+    { "name": "travel_status", "description": "Report editions, persistence status, db path, journal count, and vendored source list" },
+    { "name": "travel_countries", "description": "List all sovereign country editions with curated routes" },
+    { "name": "travel_inspect", "description": "Inspect a country edition: chrono-waypoints, sensory atmosphere, and routes" },
+    { "name": "travel_knowledge_tree", "description": "Retrieve hierarchical Baedeker primer topic tree for a country" },
+    { "name": "travel_plan_route", "description": "Calculate chrono-optimised route: legs, distance, hours, carbon, map tiles" },
+    { "name": "travel_itinerary", "description": "Generate day-by-day itinerary plan for stays (1, 2, 3, 5, 7, 14 days)" },
+    { "name": "travel_identify_sight", "description": "Identify a sight or artwork from the offline catalogue using GPS and optional hint" },
+    { "name": "travel_sight_chat", "description": "Offline grounded answer plus system prompt, map blob, and transit blob" },
+    { "name": "travel_sightlens_capture", "description": "Capture sight identification and persist a durable journal entry" },
+    { "name": "travel_journal_add", "description": "Add user reflection and sensory notes to durable SQLite journal" },
+    { "name": "travel_journal_list", "description": "List durable journal entries, newest first" },
+    { "name": "travel_geocode", "description": "Offline demo geocoder hit (giscraft-core)" },
+    { "name": "travel_nearby", "description": "Look up nearby points of interest via OpenStreetMap Overpass with local caching" }
+  ]
+}

@@ -161,6 +161,34 @@ pub struct ArtworkRecord {
     pub look_for: String,
 }
 
+/// Offline region pack format for dynamic guide expansion.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegionPack {
+    pub pack_id: String,
+    pub title: String,
+    pub country_code: String,
+    pub description: String,
+    pub version: String,
+    #[serde(default)]
+    pub waypoints: Vec<ChronoWaypoint>,
+    #[serde(default)]
+    pub sights: Vec<SightHit>,
+    #[serde(default)]
+    pub artworks: Vec<ArtworkRecord>,
+    #[serde(default)]
+    pub routes: Vec<CuratedRoute>,
+}
+
+impl RegionPack {
+    pub fn from_json_str(s: &str) -> Result<Self, serde_json::Error> {
+        serde_json::from_str(s)
+    }
+
+    pub fn to_json_string(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string_pretty(self)
+    }
+}
+
 fn sensory(acoustic: &str, arch: &str, olfactory: &str, light: &str) -> SensoryAtmosphere {
     SensoryAtmosphere {
         acoustic_profile: acoustic.to_string(),
@@ -351,7 +379,7 @@ impl BaedekerCatalog {
         out
     }
 
-    /// Offline artwork index (KHM + Belvedere highlights).
+    /// Offline artwork index (KHM, Belvedere, Leopold, and Japan national treasures).
     pub fn artworks() -> Vec<ArtworkRecord> {
         vec![
             ArtworkRecord {
@@ -398,60 +426,180 @@ impl BaedekerCatalog {
                 story: "Golden-phase lovers kneeling on a flower cliff. Austria's Mona Lisa - bought before it was finished, 25,000 crowns, the highest price ever paid for an Austrian painting then.".to_string(),
                 look_for: "Gold leaf rectangles (man) vs circles (woman), toes curling over the edge.".to_string(),
             },
+            ArtworkRecord {
+                id: "tnm_hokusai_wave".to_string(),
+                title: "Under the Wave off Kanagawa (The Great Wave)".to_string(),
+                artist: "Katsushika Hokusai".to_string(),
+                year: "c.1831".to_string(),
+                museum: "Tokyo National Museum (Honkan)".to_string(),
+                room: "Ukiyo-e Room".to_string(),
+                lat: 35.7188, lon: 139.7765,
+                story: "Icon of world art from Thirty-Six Views of Mount Fuji. Prussian blue pigment imported into Edo meets dynamic composition as fishermen navigate perilous swells.".to_string(),
+                look_for: "Clawing crest of foam, tiny distant Mount Fuji serene beneath fury, sleek oshiokuri-bune cargo boats.".to_string(),
+            },
+            ArtworkRecord {
+                id: "tnm_sesshu_sansui".to_string(),
+                title: "View of Ama-no-Hashidate (Sansui)".to_string(),
+                artist: "Sesshu Toyo".to_string(),
+                year: "c.1501-1506".to_string(),
+                museum: "Kyoto National Museum / Tokyo National Museum".to_string(),
+                room: "National Treasures Gallery".to_string(),
+                lat: 34.9904, lon: 135.7731,
+                story: "National Treasure landscape painted in Sesshu's 80s showing Tango's sandbar from an aerial vantage, synthesizing Chinese Song-Yuan ink methods with Japanese geography.".to_string(),
+                look_for: "Sandbar curving across Miyazu Bay, rapid dynamic suibokuga brushstrokes on temple roofs.".to_string(),
+            },
+            ArtworkRecord {
+                id: "leopold_schiele_wally".to_string(),
+                title: "Portrait of Wally Neuzil".to_string(),
+                artist: "Egon Schiele".to_string(),
+                year: "1912".to_string(),
+                museum: "Leopold Museum, Museumsquartier Vienna".to_string(),
+                room: "Schiele Collection".to_string(),
+                lat: 48.2036, lon: 16.3589,
+                story: "Lyrical and tender masterpiece depicting Schiele's companion and muse Walburga Neuzil, companion piece to Schiele's Self-Portrait with Chinese Lantern Plant.".to_string(),
+                look_for: "Luminous hazel eyes, tilted head expressing quiet devotion, bold expressive line work.".to_string(),
+            },
+            ArtworkRecord {
+                id: "khm_vermeer_malkunst".to_string(),
+                title: "The Art of Painting (Die Malkunst)".to_string(),
+                artist: "Johannes Vermeer".to_string(),
+                year: "c.1666-1668".to_string(),
+                museum: "KHM Gemaldegalerie".to_string(),
+                room: "Saal XII / Dutch Masters".to_string(),
+                lat: 48.2039, lon: 16.3619,
+                story: "Vermeer's most ambitious tribute to his craft: an artist painting Clio, muse of history, surrounded by symbols of fame, perspective, and cartography.".to_string(),
+                look_for: "Pulled-back tapestry curtain creating repoussoir depth, wall map crease, laurel wreath.".to_string(),
+            },
         ]
     }
 
     /// Nearest-sight identification: GPS + optional text hint (artwork aware).
     pub fn identify_sight(lat: f64, lon: f64, hint: &str) -> Option<SightHit> {
         let h = hint.to_lowercase();
+        let arts = Self::artworks();
+
         // 1. Artwork keyword fast-path (no GPS needed).
         if h.contains("caravaggio") || h.contains("rosenkranz") || h.contains("rosary") {
-            let a = Self::artworks()[0].clone();
-            return Some(SightHit {
-                id: a.id,
-                name: format!("{} - {}", a.title, a.artist),
-                kind: SightKind::Artwork,
-                country_code: "AT".to_string(),
-                lat: a.lat,
-                lon: a.lon,
-                distance_m: 0.0,
-                confidence: 0.97,
-                headline: "Caravaggio in the KHM - fugitive masterpiece".to_string(),
-                body: a.story,
-                practical: format!("{} | Look for: {}", a.museum, a.look_for),
-            });
+            if let Some(a) = arts.iter().find(|x| x.id == "khm_caravaggio_rosenkranz") {
+                return Some(SightHit {
+                    id: a.id.clone(),
+                    name: format!("{} - {}", a.title, a.artist),
+                    kind: SightKind::Artwork,
+                    country_code: "AT".to_string(),
+                    lat: a.lat,
+                    lon: a.lon,
+                    distance_m: 0.0,
+                    confidence: 0.97,
+                    headline: "Caravaggio in the KHM - fugitive masterpiece".to_string(),
+                    body: a.story.clone(),
+                    practical: format!("{} | Look for: {}", a.museum, a.look_for),
+                });
+            }
         }
         if h.contains("kuss") || h.contains("kiss") && h.contains("klimt") || h == "klimt" {
-            let a = Self::artworks()[3].clone();
-            return Some(SightHit {
-                id: a.id,
-                name: format!("{} - {}", a.title, a.artist),
-                kind: SightKind::Artwork,
-                country_code: "AT".to_string(),
-                lat: a.lat,
-                lon: a.lon,
-                distance_m: 0.0,
-                confidence: 0.96,
-                headline: "Klimt's Kiss at Belvedere Upper".to_string(),
-                body: a.story,
-                practical: format!("{} | Look for: {}", a.museum, a.look_for),
-            });
+            if let Some(a) = arts.iter().find(|x| x.id == "belvedere_klimt_kuss") {
+                return Some(SightHit {
+                    id: a.id.clone(),
+                    name: format!("{} - {}", a.title, a.artist),
+                    kind: SightKind::Artwork,
+                    country_code: "AT".to_string(),
+                    lat: a.lat,
+                    lon: a.lon,
+                    distance_m: 0.0,
+                    confidence: 0.96,
+                    headline: "Klimt's Kiss at Belvedere Upper".to_string(),
+                    body: a.story.clone(),
+                    practical: format!("{} | Look for: {}", a.museum, a.look_for),
+                });
+            }
         }
         if h.contains("bruegel") || h.contains("babel") {
-            let a = Self::artworks()[2].clone();
-            return Some(SightHit {
-                id: a.id,
-                name: format!("{} - {}", a.title, a.artist),
-                kind: SightKind::Artwork,
-                country_code: "AT".to_string(),
-                lat: a.lat,
-                lon: a.lon,
-                distance_m: 0.0,
-                confidence: 0.95,
-                headline: "Bruegel's Tower of Babel - KHM".to_string(),
-                body: a.story,
-                practical: format!("{} | Look for: {}", a.museum, a.look_for),
-            });
+            if let Some(a) = arts.iter().find(|x| x.id == "khm_bruegel_turm") {
+                return Some(SightHit {
+                    id: a.id.clone(),
+                    name: format!("{} - {}", a.title, a.artist),
+                    kind: SightKind::Artwork,
+                    country_code: "AT".to_string(),
+                    lat: a.lat,
+                    lon: a.lon,
+                    distance_m: 0.0,
+                    confidence: 0.95,
+                    headline: "Bruegel's Tower of Babel - KHM".to_string(),
+                    body: a.story.clone(),
+                    practical: format!("{} | Look for: {}", a.museum, a.look_for),
+                });
+            }
+        }
+        if h.contains("hokusai")
+            || h.contains("wave")
+            || (h.contains("great") && h.contains("wave"))
+        {
+            if let Some(a) = arts.iter().find(|x| x.id == "tnm_hokusai_wave") {
+                return Some(SightHit {
+                    id: a.id.clone(),
+                    name: format!("{} - {}", a.title, a.artist),
+                    kind: SightKind::Artwork,
+                    country_code: "JP".to_string(),
+                    lat: a.lat,
+                    lon: a.lon,
+                    distance_m: 0.0,
+                    confidence: 0.98,
+                    headline: "Hokusai's Great Wave at Tokyo National Museum".to_string(),
+                    body: a.story.clone(),
+                    practical: format!("{} | Look for: {}", a.museum, a.look_for),
+                });
+            }
+        }
+        if h.contains("sesshu") || h.contains("sansui") || h.contains("hashidate") {
+            if let Some(a) = arts.iter().find(|x| x.id == "tnm_sesshu_sansui") {
+                return Some(SightHit {
+                    id: a.id.clone(),
+                    name: format!("{} - {}", a.title, a.artist),
+                    kind: SightKind::Artwork,
+                    country_code: "JP".to_string(),
+                    lat: a.lat,
+                    lon: a.lon,
+                    distance_m: 0.0,
+                    confidence: 0.95,
+                    headline: "Sesshu Toyo Sansui at National Museum".to_string(),
+                    body: a.story.clone(),
+                    practical: format!("{} | Look for: {}", a.museum, a.look_for),
+                });
+            }
+        }
+        if h.contains("schiele") || h.contains("wally") {
+            if let Some(a) = arts.iter().find(|x| x.id == "leopold_schiele_wally") {
+                return Some(SightHit {
+                    id: a.id.clone(),
+                    name: format!("{} - {}", a.title, a.artist),
+                    kind: SightKind::Artwork,
+                    country_code: "AT".to_string(),
+                    lat: a.lat,
+                    lon: a.lon,
+                    distance_m: 0.0,
+                    confidence: 0.96,
+                    headline: "Egon Schiele's Wally Neuzil at Leopold Museum".to_string(),
+                    body: a.story.clone(),
+                    practical: format!("{} | Look for: {}", a.museum, a.look_for),
+                });
+            }
+        }
+        if h.contains("vermeer") || h.contains("malkunst") {
+            if let Some(a) = arts.iter().find(|x| x.id == "khm_vermeer_malkunst") {
+                return Some(SightHit {
+                    id: a.id.clone(),
+                    name: format!("{} - {}", a.title, a.artist),
+                    kind: SightKind::Artwork,
+                    country_code: "AT".to_string(),
+                    lat: a.lat,
+                    lon: a.lon,
+                    distance_m: 0.0,
+                    confidence: 0.97,
+                    headline: "Vermeer's Art of Painting at KHM".to_string(),
+                    body: a.story.clone(),
+                    practical: format!("{} | Look for: {}", a.museum, a.look_for),
+                });
+            }
         }
         if h.contains("stephansdom") || h.contains("steffl") {
             let (_, w) = Self::all_waypoints()
