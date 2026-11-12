@@ -11,6 +11,8 @@
     CliPackage  = 'travelcraft-app'
     CliBin      = 'travelcraft-cli'
     CliSmoke    = @('--help')
+    McpPackage  = 'travelcraft-mcp'
+    McpBin      = 'travelcraft-mcp'
     McpArgs     = @()
     McpSmoke    = @()
     Installer   = $true
