@@ -37,6 +37,7 @@
     { "name": "travel_journal_add", "description": "Add user reflection and sensory notes to durable SQLite journal" },
     { "name": "travel_journal_list", "description": "List durable journal entries, newest first" },
     { "name": "travel_geocode", "description": "Offline demo geocoder hit (giscraft-core)" },
-    { "name": "travel_nearby", "description": "Look up nearby points of interest via OpenStreetMap Overpass with local caching" }
+    { "name": "travel_nearby", "description": "Look up nearby points of interest via OpenStreetMap Overpass with local caching" },
+    { "name": "travel_transit", "description": "Opt-in local transit: gtfs-mcp schedules, publictransport-mcp live Vienna departures, companion status" }
   ]
 }

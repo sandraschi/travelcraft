@@ -1,6 +1,7 @@
 use clap::Parser;
 use serde_json::json;
 use travelcraft_baedeker::{ChronoWaypoint, CountryEdition, RegionPack, StayItinerary};
+use travelcraft_core::fleet::{transit, TransitRequest};
 use travelcraft_core::{
     RouteOptimizationResult, SightLensResult, TravelCraftEngine, TravelJournalEntry,
 };
@@ -36,6 +37,7 @@ enum ActiveViewTab {
     SightLens,
     SightChat,
     Journal,
+    Transit,
 }
 
 // Ultra-contrast Baedeker palette (pure black ink + paper white).
@@ -92,6 +94,10 @@ pub struct TravelCraftApp {
     new_reflection: String,
     new_sensory_notes: String,
     journal_log: Vec<TravelJournalEntry>,
+
+    transit_query: String,
+    transit_stop_id: String,
+    transit_report: String,
 
     // Standard Desktop UI Controls & Modals
     is_dark_theme: bool,
@@ -158,6 +164,9 @@ impl TravelCraftApp {
             new_reflection: String::new(),
             new_sensory_notes: String::new(),
             journal_log,
+            transit_query: "Stephansplatz".to_string(),
+            transit_stop_id: String::new(),
+            transit_report: "Nothing is contacted until you press a button.".to_string(),
 
             is_dark_theme: dark,
             is_authenticated: false,
@@ -418,6 +427,46 @@ impl TravelCraftApp {
         }
         self.engine.sight_chat_offline(&sight, question)
     }
+
+    /// Blocking call to local companions. Only runs when a Transit button is pressed.
+    fn run_transit(&mut self, operation: &str) {
+        let query = {
+            let trimmed = self.transit_query.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        };
+        let stop_id = {
+            let trimmed = self.transit_stop_id.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        };
+        let req = TransitRequest {
+            operation: operation.to_string(),
+            query,
+            stop_id,
+            rbl: None,
+            feed_id: None,
+            limit: Some(8),
+            sight_id: self.selected_waypoint_id.clone(),
+        };
+        match transit(&req) {
+            Ok(report) => {
+                let mode = if report.online { "online" } else { "offline" };
+                self.status_msg = format!("Transit {operation}: {mode} ({})", report.source);
+                self.transit_report = report.summary();
+            }
+            Err(e) => {
+                self.status_msg = format!("Transit {operation} failed: {e}");
+                self.transit_report = e.to_string();
+            }
+        }
+    }
 }
 
 /// Blocking Ollama chat (localhost :11434). Short timeout so the UI never hangs.
@@ -527,7 +576,7 @@ impl TravelCraftApp {
                             type PaletteEntry = (&'static str, &'static str, PaletteAction);
 
                             let q = self.command_palette_query.to_lowercase();
-                            let commands: [PaletteEntry; 26] = [
+                            let commands: [PaletteEntry; 27] = [
                                 (
                                     "File: New Itinerary (Ctrl+N)",
                                     "Create fresh 3-day itinerary and optimize route",
@@ -730,6 +779,14 @@ impl TravelCraftApp {
                                     "Configure theme, locale, stay presets, and database",
                                     Box::new(|app| {
                                         app.active_dialog = Some(ActiveDialog::Preferences);
+                                    }),
+                                ),
+                                (
+                                    "Commands: Probe fleet transit",
+                                    "Open Transit and probe gtfs, publictransport, and companion servers",
+                                    Box::new(|app| {
+                                        app.active_tab = ActiveViewTab::Transit;
+                                        app.run_transit("status");
                                     }),
                                 ),
                             ];
@@ -1326,6 +1383,10 @@ impl eframe::App for TravelCraftApp {
                         self.active_tab = ActiveViewTab::Itineraries;
                         ui.close();
                     }
+                    if ui.button("Fleet Transit").clicked() {
+                        self.active_tab = ActiveViewTab::Transit;
+                        ui.close();
+                    }
                     ui.separator();
                     if ui.button("Focus Selected Waypoint (Ctrl+F)").clicked() {
                         self.focus_selected();
@@ -1404,6 +1465,11 @@ impl eframe::App for TravelCraftApp {
                     if ui.button("Optimize Route (Haversine TSP)").clicked() {
                         self.optimized_route = self.engine.plan_optimized_route(&self.selected_country_code).ok();
                         self.status_msg = "Computed optimal Haversine route".to_string();
+                        ui.close();
+                    }
+                    if ui.button("Probe Fleet Transit").clicked() {
+                        self.active_tab = ActiveViewTab::Transit;
+                        self.run_transit("status");
                         ui.close();
                     }
                     if ui.button("Resolve Nearby Sights").clicked() {
@@ -1566,6 +1632,10 @@ impl eframe::App for TravelCraftApp {
                     (
                         ActiveViewTab::Journal,
                         travelcraft_core::i18n::I18nKey::TabJournal,
+                    ),
+                    (
+                        ActiveViewTab::Transit,
+                        travelcraft_core::i18n::I18nKey::TabTransit,
                     ),
                 ] {
                     let label = travelcraft_core::i18n::t(key, self.locale);
@@ -2821,6 +2891,45 @@ impl eframe::App for TravelCraftApp {
                             });
                             ui.add_space(4.0);
                         }
+                    });
+                }
+
+                ActiveViewTab::Transit => {
+                    big_heading(ui, "Fleet transit");
+                    body_text(
+                        ui,
+                        "Schedules come from gtfs-mcp on port 10913. Vienna live departures and disruptions come from publictransport-mcp on port 11170. Status also probes japanophile-mcp, vienna-life-assistant, speech-mcp, and giscraft. If a companion is down, the offline transit blob is shown.",
+                    );
+                    ui.horizontal(|ui| {
+                        ui.label("Stop or place:");
+                        ui.text_edit_singleline(&mut self.transit_query);
+                        ui.label("GTFS stop id:");
+                        ui.text_edit_singleline(&mut self.transit_stop_id);
+                    });
+                    ui.horizontal(|ui| {
+                        if ui.button("Probe companions").clicked() {
+                            self.run_transit("status");
+                        }
+                        if ui.button("Search stops").clicked() {
+                            self.run_transit("stops");
+                        }
+                        if ui.button("Live departures").clicked() {
+                            self.run_transit("live");
+                        }
+                        if ui.button("Timetable").clicked() {
+                            self.run_transit("departures");
+                        }
+                        if ui.button("Disruptions").clicked() {
+                            self.run_transit("disruptions");
+                        }
+                    });
+                    ui.add_space(8.0);
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        ui.label(
+                            egui::RichText::new(&self.transit_report)
+                                .monospace()
+                                .color(PAPER),
+                        );
                     });
                 }
             }

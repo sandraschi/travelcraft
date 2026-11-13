@@ -84,6 +84,7 @@ pub enum I18nKey {
     TabSightLens,
     TabSightChat,
     TabJournal,
+    TabTransit,
 
     // Country Editions
     EditionJapan,
@@ -163,6 +164,14 @@ pub fn t(key: I18nKey, locale: AppLocale) -> &'static str {
         (I18nKey::TabJournal, AppLocale::Ja) => "📖 旅日記・紀行文",
         (I18nKey::TabJournal, AppLocale::Ko) => "📖 여행 일지",
         (I18nKey::TabJournal, AppLocale::Zh) => "📖 游记手账",
+
+        (I18nKey::TabTransit, AppLocale::En) => "Transit",
+        (I18nKey::TabTransit, AppLocale::De) => "Verkehr",
+        (I18nKey::TabTransit, AppLocale::Fr) => "Transports",
+        (I18nKey::TabTransit, AppLocale::Es) => "Transporte",
+        (I18nKey::TabTransit, AppLocale::Ja) => "交通",
+        (I18nKey::TabTransit, AppLocale::Ko) => "교통",
+        (I18nKey::TabTransit, AppLocale::Zh) => "交通",
 
         // Country Editions
         (I18nKey::EditionJapan, AppLocale::En) => "🇯🇵 Japan (Tokaido Edo-2030)",
@@ -245,6 +254,7 @@ mod tests {
             assert!(!t(I18nKey::TabSightLens, *loc).is_empty());
             assert!(!t(I18nKey::TabSightChat, *loc).is_empty());
             assert!(!t(I18nKey::TabJournal, *loc).is_empty());
+            assert!(!t(I18nKey::TabTransit, *loc).is_empty());
             assert!(!t(I18nKey::StatusReady, *loc).is_empty());
         }
     }

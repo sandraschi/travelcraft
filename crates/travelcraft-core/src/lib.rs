@@ -3,6 +3,7 @@
 //! Integrates Baedeker 2030 chrono-cartography, offline vector tiles,
 //! and a durable travel journal (SQLite, WAL, synchronous=FULL).
 
+pub mod fleet;
 pub mod i18n;
 pub mod nearby;
 

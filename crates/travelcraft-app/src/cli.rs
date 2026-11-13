@@ -84,6 +84,24 @@ enum Commands {
         #[arg(default_value_t = 16.3619)]
         lon: f64,
     },
+    /// Local fleet transit. status, stops, departures, live, or disruptions.
+    /// gtfs-mcp serves schedules. publictransport-mcp serves Vienna live data.
+    Transit {
+        #[arg(default_value = "status")]
+        operation: String,
+        #[arg(long)]
+        query: Option<String>,
+        #[arg(long)]
+        stop_id: Option<String>,
+        #[arg(long)]
+        rbl: Option<String>,
+        #[arg(long)]
+        feed_id: Option<String>,
+        #[arg(long)]
+        limit: Option<usize>,
+        #[arg(long)]
+        sight: Option<String>,
+    },
     /// Serve a mobile-friendly dossier site for iPad (pair with `tailscale funnel <port>`)
     Serve {
         #[arg(default_value_t = 14130)]
@@ -195,6 +213,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "note": "Online answer: run the GUI Sight Chat tab (Ollama :11434) or POST system_prompt+question to your LLM.",
             });
             println!("{}", serde_json::to_string_pretty(&out)?);
+        }
+        Commands::Transit {
+            operation,
+            query,
+            stop_id,
+            rbl,
+            feed_id,
+            limit,
+            sight,
+        } => {
+            let req = travelcraft_core::fleet::TransitRequest {
+                operation,
+                query,
+                stop_id,
+                rbl,
+                feed_id,
+                limit,
+                sight_id: sight,
+            };
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&travelcraft_core::fleet::transit(&req)?)?
+            );
         }
         Commands::Serve { port } => {
             run_mobile_server(&engine, port)?;

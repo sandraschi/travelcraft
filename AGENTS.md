@@ -17,7 +17,7 @@ so tools that write files must emit LF. After bulk writes, check:
 |---|---|---|
 | `travelcraft-baedeker` | data | Editions (JP, AT), knowledge trees, itineraries, sight catalogue, chat grounding text |
 | `travelcraft-core` | L1 | `TravelCraftEngine`: routing, itineraries, SightLens, durable SQLite state (journal, chat log, settings) via rusqlite. Uses giscraft-core |
-| `travelcraft-mcp` | L2 | `travelcraft-mcp` binary: MCP 2024-11-05 stdio server, 13 tools (docs/TOOLS.md) |
+| `travelcraft-mcp` | L2 | `travelcraft-mcp` binary: MCP 2024-11-05 stdio server, 14 tools (docs/TOOLS.md) |
 | `travelcraft-app` | L3 | `travelcraft` egui desktop app and `travelcraft-cli` (clap) |
 
 Sibling path dependency: `../giscraft` (giscraft-core, formerly qgiscraft). Renaming or moving it breaks the build here.
@@ -40,7 +40,7 @@ not yet a shared `Command` bus.
   Shared pattern if a key is ever needed: `splatcraft/crates/craft-secrets` and its docs/SECRETS_STANDARD.md.
 - No em dashes in docs, code or commit messages.
 - Realistic AI-assisted timelines (days, not weeks) in all docs.
-- Offline first: nothing in the core path may require a network or a running service. The one exception is `travel_nearby` (Overpass): opt-in, cached in SQLite, falls back to the cache with a visible warning, labelled online in its tool description. Do not add a second networked tool without discussing it. Tests must never hit the network by default: use a fake `OverpassTransport` and keep live checks `#[ignore]`.
+- Offline first: nothing in the core path may require a network or a running service. Two tools are opt-in and labelled online: `travel_nearby` (Overpass, cached in SQLite, stale fallback) and `travel_transit` (local companions only: gtfs-mcp, publictransport-mcp, plus status probes for japanophile-mcp, vienna-life-assistant, speech-mcp, and giscraft). When a companion is down, `travel_transit` returns the offline transit blob with `source: offline`. Tests must never hit the network by default: use a fake `OverpassTransport` or `FleetTransport`.
 - Durable state: anything the user would be annoyed to lose (journal, chat history, settings) goes through the engine into the SQLite file, never only into UI memory or a process-local Vec. SQL is parameterised, never formatted. Opening the database must fail loudly; the MCP server and CLI never fall back to memory. `new_in_memory` is for tests and `--smoke` only. Journal ids come from `new_entry_id`, never from a counter or a length.
 - Known debt: `cargo clippy --workspace` fails on dead tile-map code in `travelcraft-app` (unused map fields, `focus_selected`, `section_heading`, `epoch_color`). Fix or delete it; do not `allow(dead_code)` it away.
 

@@ -28,7 +28,7 @@ Tier 1: Core Engine ──> Tier 2: MCP / CLI ──> Tier 3: Desktop UI ──>
 
 ### Tier 2 — Headless Driver & FastMCP (`travelcraft-mcp`)
 - [x] Unified CLI `travelcraft-cli` with `--json` output and iPad serve mode.
-- [x] FastMCP stdio server communicating over JSON-RPC 2.0 (13 tools).
+- [x] FastMCP stdio server communicating over JSON-RPC 2.0 (14 tools, including `travel_transit`).
 - [x] Nearby sight lookup with Overpass client and local cache.
 - [x] Headless `--smoke` verification without window initialization.
 

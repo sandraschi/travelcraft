@@ -18,7 +18,7 @@ is this" questions. Sandra uses the egui app and the iPad dossier page.
 - Planning: haversine route optimiser, stay itineraries (1, 2, 3, 5, 7, 14 days).
 - SightLens: identify a sight from GPS plus a hint, log a photo to the durable
   journal (SQLite, WAL). Sight Chat: grounded offline answer, optional Ollama in the GUI.
-- Surfaces: `travelcraft` (egui), `travelcraft-cli`, `travelcraft-mcp` (13 tools,
+- Surfaces: `travelcraft` (egui), `travelcraft-cli`, `travelcraft-mcp` (14 tools,
   see TOOLS.md), `travelcraft-cli serve` (iPad dossier page), `publish` to the
   fleet Intel Hub.
 
@@ -35,7 +35,7 @@ is this" questions. Sandra uses the egui app and the iPad dossier page.
 - Catalogue is tiny; identify matches by hint and distance, not by image.
 - Overpass mirror reliability is undiagnosed: from this machine overpass-api.de answers 502 or hangs, kumi.systems and private.coffee hang, while overpass.openstreetmap.fr and overpass.osm.ch answer in about a second. Cause unknown (rate limiting of this IP, routing, or the servers). Needs a proper look with timings per mirror over a day. Until then the French mirror goes first.
 - POI search works only through `travel_nearby` (online, public Overpass mirrors that are sometimes down). Place names resolve only for ten AT and JP cities; everything else needs lat and lon. No opening-hours evaluation.
-- Live transit (gtfs-mcp) and voice paths are GUI-side and need other services.
+- Live transit is `travel_transit` plus the Transit tab. It needs gtfs-mcp (`:10913`) and publictransport-mcp (`:11170`) running locally. Voice out still needs speech-mcp (`:10909`) or Windows SAPI.
 - Offline region pack format is not designed yet.
 - egui app crate still uses unwrap and expect and is outside the deny-lints.
 

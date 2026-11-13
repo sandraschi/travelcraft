@@ -1,5 +1,10 @@
 # TravelCraft (Baedeker 2030)
 
+![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)
+![Rust 1.90+](https://img.shields.io/badge/rust-1.90%2B-orange?logo=rust)
+![MCP stdio](https://img.shields.io/badge/MCP-stdio-purple)
+![ArtCraft harness](https://img.shields.io/badge/ArtCraft-harness-green)
+
 **TravelCraft** is an ArtCraft-tier chrono-cartography studio and local-first travel guide platform that reinvents the classic 19th-century Baedeker guide for the 2030s.
 
 Features:
@@ -9,7 +14,7 @@ Features:
 - **Stay-Length Itineraries**: 1/2/3/5/7/14-day Baedeker day-plans per edition (Itineraries tab, `travelcraft-cli itinerary AT 3`).
 - **SightLens Camera**: Point laptop at Stephansdom and click Identify, or load an Immich export. Offline GPS + hint matching (Stephansdom, KHM Caravaggio Rosenkranzmadonna, Klimt Kiss, Bruegel Tower) renders a beautiful dossier and logs it with GPS source.
 - **Sight Chat (text + voice)**: After identifying the Caravaggio, ask anything. Grounded in info blob + qgiscraft map blob + GTFS transit blob; online via Ollama `:11434` when reachable, else OFFLINE BLOB extractive answer. Voice out via Windows SAPI Speak or speech-mcp `:10909` TTS wav.
-- **Maps + Transit blobs**: qgiscraft slippy tiles/scale/URLs (`:11254`) + preloaded Wiener Linien/JR snapshot; live departures via gtfs-mcp `:10913`.
+- **Maps + Transit**: qgiscraft slippy tiles (`:11254`) plus a preloaded Wiener Linien/JR snapshot. Live schedules via gtfs-mcp `:10913` and Vienna departures via publictransport-mcp `:11170` (`travel_transit`, Transit tab). Companion status also covers japanophile-mcp and vienna-life-assistant.
 - **High-Contrast Map**: Mouse-wheel zoom + drag pan, large type, ink/paper palette.
 - **FastMCP Protocol**: Port `14129`.
 
@@ -40,7 +45,9 @@ Travelcraft is an offline, agent-native travel primer. The point is not a better
 | "Plan 3 days in Austria" | `travel_itinerary` (AT, 3) | Day-by-day plan (1, 2, 3, 5, 7 or 14 days) |
 | "Best route through Japan, oldest sight first" | `travel_plan_route` (JP) | Chrono-ordered legs, distance, hours, carbon estimate |
 | "What am I looking at near Stephansplatz?" | `travel_identify_sight` | Sight dossier from the offline catalogue |
-| "How do I get to the Caravaggio in the KHM?" | `travel_sight_chat` | Grounded answer plus map and transit snapshot (not live departures) |
+| "How do I get to the Caravaggio in the KHM?" | `travel_sight_chat` | Grounded answer plus map and the offline transit snapshot |
+| "Next trams at Stephansplatz" | `travel_transit` (`live`) | Live Vienna departures from publictransport-mcp when it is running, otherwise the offline blob |
+| "Which fleet transit servers are up?" | `travel_transit` (`status`) | Up or down for gtfs, publictransport, japanophile, vienna-life, speech, giscraft |
 | "I photographed the Klimt Kiss, log it" | `travel_sightlens_capture` | Identification plus a durable journal entry |
 | "Log: Cafe Berg, rain, Melange" | `travel_journal_add` | Saved entry id |
 | "Show my last 10 journal entries" | `travel_journal_list` | Entries, newest first |
@@ -58,14 +65,14 @@ Travelcraft is an offline, agent-native travel primer. The point is not a better
 | "Which painting is in this photo?" | Identification uses GPS plus a hint, not the image | An image model; not planned |
 | Contributing back to OpenStreetMap | Travelcraft reads OSM tiles, it does not edit OSM | A mapper workflow belongs in giscraft, not here |
 
-Network use is limited to `travel_nearby` (and the GUI map tiles). Overpass data comes from public instances that are sometimes slow or down; travelcraft tries several mirrors, caches answers for 24 h and says so when it falls back to an old answer. Coverage and opening hours are only as good as OpenStreetMap.
+Network use on the MCP server is `travel_nearby` (public Overpass) and `travel_transit` (localhost companions only). Overpass data comes from public instances that are sometimes slow or down; travelcraft tries several mirrors, caches answers for 24 h and says so when it falls back to an old answer. Coverage and opening hours are only as good as OpenStreetMap. Transit answers are only as live as gtfs-mcp and publictransport-mcp on this machine.
 
 Journal, chat history and settings live in `%LOCALAPPDATA%\travelcraft\travelcraft.db` (override with `TRAVELCRAFT_DATA`).
 ## Workspace Structure
 
 1. `crates/travelcraft-baedeker`: Editions (`JapanCraft` 9 stops, `AustriaCraft` 8 stops), stay itineraries, SightLens identify DB (landmarks + KHM/Belvedere artworks).
 2. `crates/travelcraft-core`: Geodesic routing, itineraries, SightLens pipeline, durable SQLite journal (GPS columns), chat history and settings.
-3. `crates/travelcraft-mcp`: MCP 2024-11-05 stdio server (13 tools, see `docs/TOOLS.md`). No port; hosts start the exe.
+3. `crates/travelcraft-mcp`: MCP 2024-11-05 stdio server (14 tools, see `docs/TOOLS.md`). No port; hosts start the exe.
 4. `crates/travelcraft-app`: Native GUI (`eframe`/`egui`) + CLI (`travelcraft-cli`).
 
 ---
@@ -95,7 +102,7 @@ cargo test --workspace
 - **Voice out**: `Speak last answer` = Windows SAPI offline; `Save last answer (speech-mcp wav)` = POST `:10909/api/v1/tts` to temp wav.
 - **Voice in**: type/paste transcript (mic path: speech-mcp `:10909` web UI + FunASR sidecar `:10914`; record wav then paste transcript here in v1).
 - **Maps**: every prompt carries `MAP qgiscraft Z16 tile + OSM URL + scale + Z8 bbox count` (offline math, live tiles via qgiscraft `:11254`).
-- **Transit**: preloaded blob per sight (Stephansdom U1/U3, KHM D/1/2/71 + U3, Belvedere D/71, Schoenbrunn U4, JP JR/IC hubs) sourced from `gtfs-mcp/data/vienna|wien|default`; live departures via gtfs-mcp `:10913`.
+- **Transit**: preloaded blob per sight (Stephansdom U1/U3, KHM D/1/2/71 + U3, Belvedere D/71, Schoenbrunn U4, JP JR/IC hubs). Live data is the Transit tab and `travelcraft-cli transit`: gtfs-mcp `:10913` for stop search and timetables, publictransport-mcp `:11170` for Vienna departures and disruptions.
 
 ### SightLens GPS notes
 
