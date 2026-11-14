@@ -803,8 +803,7 @@ impl TravelCraftApp {
                                             if ui
                                                 .button(
                                                     egui::RichText::new(*name)
-                                                        .strong()
-                                                        .color(PAPER),
+                                                        .strong(),
                                                 )
                                                 .clicked()
                                             {
@@ -866,7 +865,7 @@ impl TravelCraftApp {
 
                                     for (sc, cmd, cat) in &shortcuts {
                                         ui.label(egui::RichText::new(*sc).color(TEAL).strong());
-                                        ui.label(egui::RichText::new(*cmd).color(PAPER));
+                                        ui.label(egui::RichText::new(*cmd));
                                         ui.label(egui::RichText::new(*cat).color(MIST).weak());
                                         ui.end_row();
                                     }
@@ -914,7 +913,7 @@ impl TravelCraftApp {
                             for (doc_name, doc_desc) in &docs {
                                 ui.group(|ui| {
                                     ui.label(egui::RichText::new(*doc_name).strong().color(TEAL));
-                                    ui.label(egui::RichText::new(*doc_desc).small().color(PAPER));
+                                    ui.label(egui::RichText::new(*doc_desc).small());
                                 });
                             }
                         });
@@ -1033,8 +1032,7 @@ impl TravelCraftApp {
                             ui.separator();
                             ui.label(
                                 egui::RichText::new("Storage & Engine:")
-                                    .strong()
-                                    .color(PAPER),
+                                    .strong(),
                             );
                             let db_p = self
                                 .engine
@@ -1143,7 +1141,7 @@ impl TravelCraftApp {
 }
 
 fn big_heading(ui: &mut egui::Ui, text: &str) {
-    ui.label(egui::RichText::new(text).size(27.0).strong().color(PAPER));
+    ui.label(egui::RichText::new(text).size(27.0).strong());
 }
 
 fn section_heading(ui: &mut egui::Ui, text: &str) {
@@ -1151,7 +1149,7 @@ fn section_heading(ui: &mut egui::Ui, text: &str) {
 }
 
 fn body_text(ui: &mut egui::Ui, text: &str) {
-    ui.label(egui::RichText::new(text).size(17.5).color(PAPER));
+    ui.label(egui::RichText::new(text).size(17.5));
 }
 
 /// Chrono layer color by waypoint epoch: ancient / medieval / early modern / modern.
@@ -1194,9 +1192,11 @@ impl eframe::App for TravelCraftApp {
         } else {
             let mut v = egui::Visuals::light();
             v.override_text_color = Some(egui::Color32::BLACK);
+            v.weak_text_color = Some(egui::Color32::BLACK);
             v.panel_fill = egui::Color32::WHITE;
-            v.window_fill = egui::Color32::from_rgb(244, 246, 250);
+            v.window_fill = egui::Color32::WHITE;
             v.extreme_bg_color = egui::Color32::WHITE;
+            v.faint_bg_color = egui::Color32::WHITE;
             v.selection.bg_fill = egui::Color32::from_rgb(10, 25, 60);
             v.selection.stroke = egui::Stroke::new(2.0, egui::Color32::WHITE);
             v.hyperlink_color = egui::Color32::from_rgb(140, 80, 0);
@@ -2673,7 +2673,7 @@ impl eframe::App for TravelCraftApp {
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             for day in &itin.days {
                                 ui.group(|ui| {
-                                    ui.label(egui::RichText::new(&day.title).size(18.0).strong().color(PAPER));
+                                    ui.label(egui::RichText::new(&day.title).size(18.0).strong());
                                     for id in &day.waypoint_ids {
                                         body_text(ui, &format!("- {id}"));
                                     }
@@ -2927,8 +2927,7 @@ impl eframe::App for TravelCraftApp {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         ui.label(
                             egui::RichText::new(&self.transit_report)
-                                .monospace()
-                                .color(PAPER),
+                                .monospace(),
                         );
                     });
                 }
