@@ -8,7 +8,7 @@ pub mod i18n;
 pub mod nearby;
 
 use giscraft_core::geo::{haversine_m, LonLat};
-use giscraft_core::geocode::{demo_search, Hit};
+use giscraft_core::geocode::{offline_search, Hit};
 use giscraft_core::tiles::bbox_to_tiles;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
@@ -383,7 +383,7 @@ impl TravelCraftEngine {
 
     /// Geocode and enrich an itinerary location using QGISCraft geocoding engine
     pub fn geocode_waypoint(&self, query: &str) -> Result<Vec<Hit>, TravelCraftError> {
-        demo_search(query, 5).map_err(|e| TravelCraftError::Gis(e.to_string()))
+        offline_search(query, 5).map_err(|e| TravelCraftError::Gis(e.to_string()))
     }
 
     /// SightLens identify: GPS + hint -> SightHit (landmark / museum / artwork).
