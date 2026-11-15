@@ -173,6 +173,12 @@ fn tools() -> Value {
             }),
             &["operation"],
         ),
+        tool(
+            "travelcraft_skill_read",
+            "Read a bundled TravelCraft domain skill (SKILL.md) by name.",
+            json!({ "name": { "type": "string" } }),
+            &["name"],
+        ),
     ])
 }
 
@@ -321,6 +327,10 @@ fn dispatch(engine: &TravelCraftEngine, name: &str, args: &Value) -> Res {
             };
             to_json(&travelcraft_core::fleet::transit(&req).map_err(engine_err)?)
         }
+        "travelcraft_skill_read" => {
+            let n = str_arg(args, "name")?;
+            travelcraft_core::skills::skill_read(n).map_err(|e| ("not_found", e))
+        }
         other => Err(("not_found", format!("unknown tool: {other}"))),
     }
 }
@@ -350,12 +360,33 @@ fn handle(engine: &TravelCraftEngine, msg: &Value) -> Option<Value> {
     Some(match method {
         "initialize" => reply(json!({
             "protocolVersion": "2024-11-05",
-            "capabilities": { "tools": {} },
+            "capabilities": { "tools": {}, "resources": { "listChanged": false } },
             "serverInfo": { "name": "travelcraft-mcp", "version": env!("CARGO_PKG_VERSION") },
         })),
         "ping" => reply(json!({})),
         "tools/list" => reply(json!({ "tools": tools() })),
         "tools/call" => reply(call_tool(engine, msg.get("params").unwrap_or(&Value::Null))),
+        "resources/list" => {
+            reply(json!({ "resources": travelcraft_core::skills::mcp_resources() }))
+        }
+        "resources/read" => {
+            let uri = msg
+                .get("params")
+                .and_then(|p| p.get("uri"))
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            if let Some(s) = travelcraft_core::skills::skill_by_uri(uri) {
+                reply(json!({
+                    "contents": [{ "uri": s.uri, "mimeType": "text/markdown", "text": s.content }]
+                }))
+            } else {
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": { "code": -32002, "message": format!("Resource not found: {uri}") },
+                })
+            }
+        }
         _ => json!({
             "jsonrpc": "2.0",
             "id": id,

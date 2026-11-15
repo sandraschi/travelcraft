@@ -1,3 +1,6 @@
+mod chat_dock;
+mod settings_view;
+
 use clap::Parser;
 use serde_json::json;
 use travelcraft_baedeker::{ChronoWaypoint, CountryEdition, RegionPack, StayItinerary};
@@ -27,7 +30,7 @@ pub enum ActiveDialog {
     ImportRegionPack,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 enum ActiveViewTab {
     ChronoMap,
     WaypointDetail,
@@ -38,6 +41,7 @@ enum ActiveViewTab {
     SightChat,
     Journal,
     Transit,
+    LlmSettings,
 }
 
 // Ultra-contrast Baedeker palette (pure black ink + paper white).
@@ -87,6 +91,8 @@ pub struct TravelCraftApp {
     chat_input: String,
     chat_model: String,
     chat_online: bool,
+    chat_live_web: bool,
+    chat_asr_path: String,
     chat_log: Vec<(String, String)>,
     chat_status: String,
 
@@ -108,6 +114,8 @@ pub struct TravelCraftApp {
     active_dialog: Option<ActiveDialog>,
     command_palette_query: String,
     region_pack_json_input: String,
+    chat_dock: chat_dock::ChatDockState,
+    settings: settings_view::SettingsState,
 }
 
 impl TravelCraftApp {
@@ -159,6 +167,8 @@ impl TravelCraftApp {
             chat_input: String::new(),
             chat_model: saved_model.unwrap_or_else(|| "qwen2.5:7b".to_string()),
             chat_online: true,
+            chat_live_web: false,
+            chat_asr_path: String::new(),
             chat_log,
             chat_status: String::new(),
             new_reflection: String::new(),
@@ -176,6 +186,8 @@ impl TravelCraftApp {
             active_dialog: None,
             command_palette_query: String::new(),
             region_pack_json_input: String::new(),
+            chat_dock: chat_dock::ChatDockState::default(),
+            settings: settings_view::SettingsState::default(),
         })
     }
 
@@ -409,6 +421,27 @@ impl TravelCraftApp {
         let ctx = self.engine.sight_chat_context(&sight);
         // History (last 6) keeps follow-ups coherent without blowing the prompt.
         let history: Vec<(String, String)> = self.chat_log.iter().rev().take(6).cloned().collect();
+        if self.chat_live_web {
+            let mut system = ctx.system_prompt();
+            system.push_str(
+                "\n\nWhen a fact is not in the notes above, search the web and cite the page URL.",
+            );
+            match craft_ai_core::deepseek::research(&system, question) {
+                Ok(reply) => {
+                    self.chat_status = format!(
+                        "DeepSeek live check ({} search, {} page read, about ${:.4} off-peak).",
+                        reply.search_requests,
+                        reply.fetch_requests,
+                        reply.estimate_usd()
+                    );
+                    return reply.text;
+                }
+                Err(e) => {
+                    self.chat_status =
+                        format!("DeepSeek live check failed ({e}). Using the local guide.");
+                }
+            }
+        }
         if self.chat_online {
             match ollama_chat_blocking(&self.chat_model, &ctx.system_prompt(), &history, question) {
                 Ok(text) => {
@@ -803,8 +836,7 @@ impl TravelCraftApp {
                                             if ui
                                                 .button(
                                                     egui::RichText::new(*name)
-                                                        .strong()
-                                                        .color(PAPER),
+                                                        .strong(),
                                                 )
                                                 .clicked()
                                             {
@@ -866,7 +898,7 @@ impl TravelCraftApp {
 
                                     for (sc, cmd, cat) in &shortcuts {
                                         ui.label(egui::RichText::new(*sc).color(TEAL).strong());
-                                        ui.label(egui::RichText::new(*cmd).color(PAPER));
+                                        ui.label(egui::RichText::new(*cmd));
                                         ui.label(egui::RichText::new(*cat).color(MIST).weak());
                                         ui.end_row();
                                     }
@@ -914,7 +946,7 @@ impl TravelCraftApp {
                             for (doc_name, doc_desc) in &docs {
                                 ui.group(|ui| {
                                     ui.label(egui::RichText::new(*doc_name).strong().color(TEAL));
-                                    ui.label(egui::RichText::new(*doc_desc).small().color(PAPER));
+                                    ui.label(egui::RichText::new(*doc_desc).small());
                                 });
                             }
                         });
@@ -1031,11 +1063,7 @@ impl TravelCraftApp {
                             });
 
                             ui.separator();
-                            ui.label(
-                                egui::RichText::new("Storage & Engine:")
-                                    .strong()
-                                    .color(PAPER),
-                            );
+                            ui.label(egui::RichText::new("Storage & Engine:").strong());
                             let db_p = self
                                 .engine
                                 .db_path()
@@ -1143,7 +1171,7 @@ impl TravelCraftApp {
 }
 
 fn big_heading(ui: &mut egui::Ui, text: &str) {
-    ui.label(egui::RichText::new(text).size(27.0).strong().color(PAPER));
+    ui.label(egui::RichText::new(text).size(27.0).strong());
 }
 
 fn section_heading(ui: &mut egui::Ui, text: &str) {
@@ -1151,7 +1179,7 @@ fn section_heading(ui: &mut egui::Ui, text: &str) {
 }
 
 fn body_text(ui: &mut egui::Ui, text: &str) {
-    ui.label(egui::RichText::new(text).size(17.5).color(PAPER));
+    ui.label(egui::RichText::new(text).size(17.5));
 }
 
 /// Chrono layer color by waypoint epoch: ancient / medieval / early modern / modern.
@@ -1169,6 +1197,21 @@ fn epoch_color(year_ad: i32) -> egui::Color32 {
 
 impl eframe::App for TravelCraftApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        if ui.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::J)) {
+            self.chat_dock.open = !self.chat_dock.open;
+        }
+        if self.chat_dock.busy || self.settings.scanning || self.settings.testing {
+            ui.ctx().request_repaint();
+        }
+        let active_tab_name = format!("{:?}", self.active_tab);
+        self.chat_dock
+            .poll(&self.engine, &self.selected_country_code, &active_tab_name);
+        self.settings.poll(&mut self.chat_dock);
+        if self.chat_dock.open_settings_requested {
+            self.chat_dock.open_settings_requested = false;
+            self.chat_dock.maximized = false;
+            self.active_tab = ActiveViewTab::LlmSettings;
+        }
         if self.is_dark_theme {
             let mut v = egui::Visuals::dark();
             v.override_text_color = Some(egui::Color32::WHITE);
@@ -1194,9 +1237,11 @@ impl eframe::App for TravelCraftApp {
         } else {
             let mut v = egui::Visuals::light();
             v.override_text_color = Some(egui::Color32::BLACK);
+            v.weak_text_color = Some(egui::Color32::BLACK);
             v.panel_fill = egui::Color32::WHITE;
-            v.window_fill = egui::Color32::from_rgb(244, 246, 250);
+            v.window_fill = egui::Color32::WHITE;
             v.extreme_bg_color = egui::Color32::WHITE;
+            v.faint_bg_color = egui::Color32::WHITE;
             v.selection.bg_fill = egui::Color32::from_rgb(10, 25, 60);
             v.selection.stroke = egui::Stroke::new(2.0, egui::Color32::WHITE);
             v.hyperlink_color = egui::Color32::from_rgb(140, 80, 0);
@@ -1644,6 +1689,23 @@ impl eframe::App for TravelCraftApp {
                     }
                 }
                 ui.separator();
+                if ui
+                    .selectable_label(
+                        self.active_tab == ActiveViewTab::LlmSettings,
+                        "LLM & Settings",
+                    )
+                    .clicked()
+                {
+                    self.active_tab = ActiveViewTab::LlmSettings;
+                }
+                ui.separator();
+                if ui
+                    .selectable_label(self.chat_dock.open, "Chat (Ctrl+J)")
+                    .clicked()
+                {
+                    self.chat_dock.open = !self.chat_dock.open;
+                }
+                ui.separator();
                 ui.label(format!("Port 14129 | {}", self.status_msg));
             });
         });
@@ -1892,6 +1954,33 @@ impl eframe::App for TravelCraftApp {
                 }
             });
         });
+
+        // RIGHT PANEL: Ctrl+J Advisor Chat Dock
+        if self.chat_dock.open {
+            let max_w = if self.chat_dock.maximized {
+                760.0
+            } else {
+                480.0
+            };
+            let default_w = if self.chat_dock.maximized {
+                620.0
+            } else {
+                360.0
+            };
+            egui::Panel::right("travel_chat_dock")
+                .default_size(default_w)
+                .min_size(280.0)
+                .max_size(max_w)
+                .resizable(true)
+                .show(ui, |ui| {
+                    self.chat_dock.ui(
+                        ui,
+                        &self.engine,
+                        &self.selected_country_code,
+                        &active_tab_name,
+                    );
+                });
+        }
 
         // CENTRAL PANEL
         egui::CentralPanel::default().show(ui, |ui| {
@@ -2673,7 +2762,7 @@ impl eframe::App for TravelCraftApp {
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             for day in &itin.days {
                                 ui.group(|ui| {
-                                    ui.label(egui::RichText::new(&day.title).size(18.0).strong().color(PAPER));
+                                    ui.label(egui::RichText::new(&day.title).size(18.0).strong());
                                     for id in &day.waypoint_ids {
                                         body_text(ui, &format!("- {id}"));
                                     }
@@ -2778,6 +2867,7 @@ impl eframe::App for TravelCraftApp {
                             ui.label("Model:");
                             ui.text_edit_singleline(&mut self.chat_model);
                             ui.checkbox(&mut self.chat_online, "online LLM");
+                            ui.checkbox(&mut self.chat_live_web, "live web (DeepSeek)");
                             if ui.button("Use current sight").clicked() {
                                 self.chat_status = format!("Chat context: {ctx_name}");
                             }
@@ -2825,6 +2915,25 @@ impl eframe::App for TravelCraftApp {
                         }
                     });
                     ui.horizontal(|ui| {
+                        if ui.button("Read aloud (DeepSeek)").clicked() {
+                            if let Some((_, last)) = self.chat_log.iter().rev().find(|(r, _)| r == "guide") {
+                                let spoken: String = last.chars().take(2000).collect();
+                                let dest = std::env::temp_dir().join("travelcraft-deepseek.wav");
+                                match craft_ai_core::deepseek::speak_to_file(&spoken, &dest) {
+                                    Ok(path) => {
+                                        let script = format!(
+                                            "Start-Process -LiteralPath '{}'",
+                                            path.display()
+                                        );
+                                        let _ = std::process::Command::new("powershell.exe")
+                                            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+                                            .status();
+                                        self.chat_status = format!("DeepSeek speech saved: {}", path.display());
+                                    }
+                                    Err(e) => self.chat_status = format!("DeepSeek speech failed: {e}"),
+                                }
+                            }
+                        }
                         if ui.button("Speak last answer").clicked() {
                             if let Some((_, last)) = self.chat_log.iter().rev().find(|(r, _)| r == "guide") {
                                 self.chat_status = speak_text_windows(last);
@@ -2835,7 +2944,25 @@ impl eframe::App for TravelCraftApp {
                                 self.chat_status = speech_mcp_tts_save(last);
                             }
                         }
-                        body_text(ui, "Voice in: type or paste transcript (mic via speech-mcp :10909 web UI, STT sidecar :10914). Voice out: SAPI Speak or speech-mcp TTS wav.");
+                        body_text(ui, "Voice in: paste a transcript, or point at a WAV or Ogg Opus file (at most 120 seconds). Voice out: DeepSeek wav, Windows SAPI, or speech-mcp.");
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("Audio file:");
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.chat_asr_path)
+                                .desired_width(280.0)
+                                .hint_text("WAV or Ogg Opus, 120 seconds max"),
+                        );
+                        if ui.button("Transcribe (DeepSeek)").clicked() {
+                            let path = self.chat_asr_path.clone();
+                            match craft_ai_core::deepseek::transcribe_file(std::path::Path::new(&path)) {
+                                Ok(text) => {
+                                    self.chat_input = text;
+                                    self.chat_status = "Transcript is in the Ask box. Press Send.".to_string();
+                                }
+                                Err(e) => self.chat_status = format!("DeepSeek transcription failed: {e}"),
+                            }
+                        }
                     });
                 }
 
@@ -2927,10 +3054,12 @@ impl eframe::App for TravelCraftApp {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         ui.label(
                             egui::RichText::new(&self.transit_report)
-                                .monospace()
-                                .color(PAPER),
+                                .monospace(),
                         );
                     });
+                }
+                ActiveViewTab::LlmSettings => {
+                    settings_view::ui_llm_settings(ui, &mut self.settings, &mut self.chat_dock);
                 }
             }
         });

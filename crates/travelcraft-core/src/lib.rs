@@ -5,7 +5,9 @@
 
 pub mod fleet;
 pub mod i18n;
+pub mod llm;
 pub mod nearby;
+pub mod skills;
 
 use giscraft_core::geo::{haversine_m, LonLat};
 use giscraft_core::geocode::{offline_search, Hit};
