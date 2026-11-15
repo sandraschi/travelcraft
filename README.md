@@ -5,6 +5,16 @@
 ![MCP stdio](https://img.shields.io/badge/MCP-stdio-purple)
 ![ArtCraft harness](https://img.shields.io/badge/ArtCraft-harness-green)
 
+## Install
+
+Tell Cursor, Claude, Antigravity, or OpenCode: **Install this.**
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install-craft.ps1
+```
+
+Installs the Windows app, the CLI, and the MCP bundle.
+
 **TravelCraft** is an ArtCraft-tier chrono-cartography studio and local-first travel guide platform that reinvents the classic 19th-century Baedeker guide for the 2030s.
 
 Features:
