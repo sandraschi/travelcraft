@@ -575,6 +575,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-ai-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+]
+
+[[package]]
 name = "crc32fast"
 version = "1.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3838,6 +3848,7 @@ version = "0.2.0"
 dependencies = [
  "chrono",
  "clap",
+ "craft-ai-core",
  "eframe",
  "egui",
  "giscraft-core",
