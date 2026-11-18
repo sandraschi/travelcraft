@@ -3,8 +3,10 @@
 //! Integrates Baedeker 2030 chrono-cartography, offline vector tiles,
 //! and a durable travel journal (SQLite, WAL, synchronous=FULL).
 
+pub mod cities;
 pub mod fleet;
 pub mod i18n;
+pub mod kanban;
 pub mod llm;
 pub mod nearby;
 pub mod skills;
@@ -98,7 +100,7 @@ const MAX_FIELD_CHARS: usize = 4_096;
 const MAX_PHOTOS: usize = 32;
 const CHAT_KEEP: i64 = 1_000;
 
-fn db_err<E: std::fmt::Display>(e: E) -> TravelCraftError {
+pub(crate) fn db_err<E: std::fmt::Display>(e: E) -> TravelCraftError {
     TravelCraftError::Store(e.to_string())
 }
 
@@ -163,7 +165,7 @@ impl TravelCraftEngine {
         Ok(engine)
     }
 
-    fn lock(&self) -> MutexGuard<'_, Connection> {
+    pub(crate) fn lock(&self) -> MutexGuard<'_, Connection> {
         self.conn.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
@@ -211,6 +213,16 @@ impl TravelCraftEngine {
                 country_code TEXT NOT NULL,
                 version TEXT NOT NULL,
                 payload TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS kanban_cards (
+                card_id TEXT PRIMARY KEY,
+                column_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                city TEXT NOT NULL,
+                note TEXT NOT NULL,
+                lat REAL,
+                lon REAL,
+                sort_key INTEGER NOT NULL
             );",
         )
         .map_err(db_err)?;
@@ -495,7 +507,12 @@ impl TravelCraftEngine {
         format!("{prefix}-{}-{n:03}", chrono::Utc::now().timestamp_millis())
     }
 
-    fn check_text(name: &str, s: &str, max: usize, required: bool) -> Result<(), TravelCraftError> {
+    pub(crate) fn check_text(
+        name: &str,
+        s: &str,
+        max: usize,
+        required: bool,
+    ) -> Result<(), TravelCraftError> {
         if required && s.trim().is_empty() {
             return Err(TravelCraftError::Invalid(format!("{name} is empty")));
         }
