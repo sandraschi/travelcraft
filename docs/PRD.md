@@ -48,14 +48,14 @@ is this" questions. Sandra uses the egui app and the iPad dossier page.
 ## UI/UX Architecture & Menu Bar Standard
 
 In accordance with [`CRAFT_MENU_BAR_STANDARD.md`](../../mcp-central-docs/standards/rust-artcraft/CRAFT_MENU_BAR_STANDARD.md):
-- **Pattern 2 (Viewport-Centric Craft Workstation):** Persistent Baedeker geographical map canvas and chrono-waypoint stage with offline knowledge tree. Top quick button row acts as accelerators into the `View` menu. To add a new regional guide or routing tool:
+- **Pattern 2 (Viewport-Centric Craft Workstation):** Opening canvas is a street map of Vienna or Tokyo, with a trip kanban beside it. The country chrono sketch is still there, under View, out of the main row. Top quick button row acts as accelerators into the `View` menu. To add a new regional guide or routing tool:
   1. Register a visibility toggle in the `View` or `Window` menu.
   2. Add an entry in the sidebar Edition / Sights toolbox.
   3. Wire the action directly into the universal `Command::dispatch` bus.
 - **Top Menu Bar Hierarchy:**
   - `File`: New Itinerary (`Ctrl+N`), Open Journal (`Ctrl+O`), Open Recent ▸, Save Journal (`Ctrl+S`), Export Dossier / HTML (`Ctrl+E`), Close (`Ctrl+W`), Quit (`Ctrl+Q`).
   - `Edit`: Undo (`Ctrl+Z`), Redo (`Ctrl+Y`), Cut, Copy, Paste, Select All, Preferences (`Ctrl+,`).
-  - `View`: Map Canvas / Viewport, Chrono-Waypoint Timeline, SightLens Inspector, Travel Journal, Sight Chat, Theme (`Dark`/`Light`).
+  - `View`: Vienna / Tokyo maps, Trip kanban, Chrono-Waypoint Timeline, SightLens Inspector, Travel Journal, Sight Chat, Country sketch (chrono map), Theme (`Dark`/`Light`).
   - `Insert`: Add Waypoint, Insert Photo Entry, Add Custom Sight, Import Region Pack.
   - `Modify`: Reorder Itinerary, Edit Waypoint Notes, Adjust Stay Duration, Tune Route Weights.
   - `Commands`: Optimize Route (Haversine TSP), Resolve Nearby Sights, Query Offline Sight Chat, Publish to Intel Hub.
