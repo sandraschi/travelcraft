@@ -13,6 +13,10 @@
 //!
 //! SOURCES is the attribution contract. Keep it updated when re-vendoring.
 
+pub mod cartridge;
+pub mod packs_europe;
+pub mod packs_japan;
+
 use serde::{Deserialize, Serialize};
 
 /// Attribution for vendored offline content.
