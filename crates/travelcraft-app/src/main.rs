@@ -1,4 +1,6 @@
 mod chat_dock;
+mod city_map;
+mod kanban_view;
 mod settings_view;
 
 use clap::Parser;
@@ -20,10 +22,45 @@ struct Args {
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
+pub enum HelpCenterTab {
+    GetStarted,
+    Usage,
+    TipsAndTricks,
+    PitfallsAndSafety,
+    PlannedExtensions,
+    Skills,
+    ProjectDocs,
+}
+
+impl HelpCenterTab {
+    fn label(self) -> &'static str {
+        match self {
+            Self::GetStarted => "Get Started",
+            Self::Usage => "Usage (GUI, CLI & MCP)",
+            Self::TipsAndTricks => "Tips & Tricks",
+            Self::PitfallsAndSafety => "Pitfalls & Safety",
+            Self::PlannedExtensions => "Planned Extensions",
+            Self::Skills => "Bundled Skills",
+            Self::ProjectDocs => "Project Files & Other Crafts",
+        }
+    }
+
+    const ALL: [Self; 7] = [
+        Self::GetStarted,
+        Self::Usage,
+        Self::TipsAndTricks,
+        Self::PitfallsAndSafety,
+        Self::PlannedExtensions,
+        Self::Skills,
+        Self::ProjectDocs,
+    ];
+}
+
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum ActiveDialog {
     CommandPalette,
     KeyboardShortcuts,
-    ProjectDocs,
+    HelpCenter(HelpCenterTab),
     LicensesNotices,
     About,
     Preferences,
@@ -32,6 +69,8 @@ pub enum ActiveDialog {
 
 #[derive(Debug, PartialEq, Eq)]
 enum ActiveViewTab {
+    CityMap,
+    Kanban,
     ChronoMap,
     WaypointDetail,
     SensoryAtmosphere,
@@ -116,6 +155,8 @@ pub struct TravelCraftApp {
     region_pack_json_input: String,
     chat_dock: chat_dock::ChatDockState,
     settings: settings_view::SettingsState,
+    city_canvas: city_map::CityCanvas,
+    kanban_draft: kanban_view::KanbanDraft,
 }
 
 impl TravelCraftApp {
@@ -139,6 +180,12 @@ impl TravelCraftApp {
         let chat_log = Self::load_chat(&engine);
         let journal_log = engine.list_journal(500).unwrap_or_default();
         let itinerary = engine.plan_itinerary("JP", 3).ok();
+        let mut status_msg = persist_note.unwrap_or_else(|| {
+            "Street maps of Vienna and Tokyo are ready. The trip board is under Kanban.".to_string()
+        });
+        if let Err(err) = engine.kanban_seed_cities() {
+            status_msg = format!("{status_msg} Kanban seed failed: {err}");
+        }
 
         Ok(Self {
             engine,
@@ -146,9 +193,8 @@ impl TravelCraftApp {
             selected_waypoint_id: Some("jp_nihonbashi".to_string()),
             selected_info_item_id: None,
             tree_search_query: String::new(),
-            active_tab: ActiveViewTab::ChronoMap,
-            status_msg: persist_note
-                .unwrap_or_else(|| "Baedeker 2030 Chrono-Cartography Ready".to_string()),
+            active_tab: ActiveViewTab::CityMap,
+            status_msg,
             optimized_route: initial_plan,
             map_clng: 139.7745,
             map_clat: 35.6840,
@@ -188,6 +234,8 @@ impl TravelCraftApp {
             region_pack_json_input: String::new(),
             chat_dock: chat_dock::ChatDockState::default(),
             settings: settings_view::SettingsState::default(),
+            city_canvas: city_map::CityCanvas::for_country("JP"),
+            kanban_draft: kanban_view::KanbanDraft::default(),
         })
     }
 
@@ -271,12 +319,35 @@ impl TravelCraftApp {
         self.map_clng = lon;
     }
 
-    /// Fly the chrono map to the selected waypoint (city-scale zoom).
+    /// Open Vienna or Tokyo on the street map. Anywhere else falls back to
+    /// the country sketch, which stays off the main tab row.
+    fn open_on_map(&mut self, lat: f64, lon: f64, label: &str) {
+        if self.city_canvas.show_place(lat, lon) {
+            self.active_tab = ActiveViewTab::CityMap;
+            self.status_msg = format!("Map: {label} ({lat:.4}, {lon:.4})");
+        } else {
+            self.center_map_on(lat, lon, 3.5);
+            self.active_tab = ActiveViewTab::ChronoMap;
+            self.status_msg =
+                format!("{label} is outside Vienna and Tokyo. Country sketch is open.");
+        }
+    }
+
+    fn reset_active_map(&mut self) {
+        if self.active_tab == ActiveViewTab::ChronoMap {
+            self.map_zoom = 1.0;
+            self.map_pan = egui::Vec2::ZERO;
+        } else {
+            self.city_canvas.go_home();
+        }
+        self.status_msg = "Reset map view".to_string();
+    }
+
+    /// Fly the map to the selected waypoint.
     pub fn focus_selected(&mut self) {
         if let Some(w) = self.current_waypoint() {
-            self.center_map_on(w.lat, w.lon, 3.5);
-            self.active_tab = ActiveViewTab::ChronoMap;
-            self.status_msg = format!("Focused map on {} ({:.4}, {:.4})", w.name, w.lat, w.lon);
+            let name = w.name.clone();
+            self.open_on_map(w.lat, w.lon, &name);
         }
     }
 
@@ -609,7 +680,7 @@ impl TravelCraftApp {
                             type PaletteEntry = (&'static str, &'static str, PaletteAction);
 
                             let q = self.command_palette_query.to_lowercase();
-                            let commands: [PaletteEntry; 27] = [
+                            let commands: Vec<PaletteEntry> = vec![
                                 (
                                     "File: New Itinerary (Ctrl+N)",
                                     "Create fresh 3-day itinerary and optimize route",
@@ -647,6 +718,7 @@ impl TravelCraftApp {
                                     Box::new(|app| {
                                         app.selected_country_code = "JP".into();
                                         app.selected_waypoint_id = Some("jp_nihonbashi".into());
+                                        app.city_canvas.set_city(travelcraft_core::cities::TravelCity::Tokyo);
                                         app.optimized_route =
                                             app.engine.plan_optimized_route("JP").ok();
                                         app.refresh_itinerary();
@@ -659,6 +731,7 @@ impl TravelCraftApp {
                                     Box::new(|app| {
                                         app.selected_country_code = "AT".into();
                                         app.selected_waypoint_id = Some("at_stephansdom".into());
+                                        app.city_canvas.set_city(travelcraft_core::cities::TravelCity::Vienna);
                                         app.optimized_route =
                                             app.engine.plan_optimized_route("AT").ok();
                                         app.refresh_itinerary();
@@ -666,8 +739,22 @@ impl TravelCraftApp {
                                     }),
                                 ),
                                 (
-                                    "View: Chrono-Cartographic Map",
-                                    "Interactive WGS84 Mercator projection canvas",
+                                    "View: Vienna and Tokyo maps",
+                                    "OpenStreetMap street maps of the two cities",
+                                    Box::new(|app| {
+                                        app.active_tab = ActiveViewTab::CityMap;
+                                    }),
+                                ),
+                                (
+                                    "View: Trip kanban",
+                                    "Backlog, this trip, booked, done",
+                                    Box::new(|app| {
+                                        app.active_tab = ActiveViewTab::Kanban;
+                                    }),
+                                ),
+                                (
+                                    "View: Country sketch (chrono map)",
+                                    "Old country-scale chrono sketch, kept out of the main row",
                                     Box::new(|app| {
                                         app.active_tab = ActiveViewTab::ChronoMap;
                                     }),
@@ -725,9 +812,7 @@ impl TravelCraftApp {
                                     "View: Center & Reset Map Viewport",
                                     "Reset map zoom and pan back to origin",
                                     Box::new(|app| {
-                                        app.map_zoom = 1.0;
-                                        app.map_pan = egui::Vec2::ZERO;
-                                        app.status_msg = "Reset map viewport".into();
+                                        app.reset_active_map();
                                     }),
                                 ),
                                 (
@@ -780,6 +865,13 @@ impl TravelCraftApp {
                                     }),
                                 ),
                                 (
+                                    "View: Toggle AI Chat Dock (Ctrl+J)",
+                                    "Open or close the Baedeker AI Chat Dock",
+                                    Box::new(|app| {
+                                        app.chat_dock.open = !app.chat_dock.open;
+                                    }),
+                                ),
+                                (
                                     "Help: Keyboard Shortcuts (F1 / Ctrl+/)",
                                     "Open complete cheat sheet of studio keystrokes",
                                     Box::new(|app| {
@@ -787,10 +879,64 @@ impl TravelCraftApp {
                                     }),
                                 ),
                                 (
-                                    "Help: Project Files & Documentation",
-                                    "Browse PRD, Tiered Plan, Tools, and Architecture",
+                                    "Help: Getting Started",
+                                    "5-step first-run tour for TravelCraft",
                                     Box::new(|app| {
-                                        app.active_dialog = Some(ActiveDialog::ProjectDocs);
+                                        app.active_dialog = Some(ActiveDialog::HelpCenter(
+                                            HelpCenterTab::GetStarted,
+                                        ));
+                                    }),
+                                ),
+                                (
+                                    "Help: Usage (GUI, CLI & MCP)",
+                                    "Desktop, travelcraft-cli, and travelcraft-mcp workflows",
+                                    Box::new(|app| {
+                                        app.active_dialog =
+                                            Some(ActiveDialog::HelpCenter(HelpCenterTab::Usage));
+                                    }),
+                                ),
+                                (
+                                    "Help: Tips & Tricks",
+                                    "Keyboard flows, Overpass radius tuning, and TRAVELCRAFT_DATA",
+                                    Box::new(|app| {
+                                        app.active_dialog = Some(ActiveDialog::HelpCenter(
+                                            HelpCenterTab::TipsAndTricks,
+                                        ));
+                                    }),
+                                ),
+                                (
+                                    "Help: Common Pitfalls & Safety",
+                                    "Timezone/DST, stale transit, coordinates, and SQLite WAL safety",
+                                    Box::new(|app| {
+                                        app.active_dialog = Some(ActiveDialog::HelpCenter(
+                                            HelpCenterTab::PitfallsAndSafety,
+                                        ));
+                                    }),
+                                ),
+                                (
+                                    "Help: Planned Extensions",
+                                    "Honest roadmap of upcoming TravelCraft capabilities",
+                                    Box::new(|app| {
+                                        app.active_dialog = Some(ActiveDialog::HelpCenter(
+                                            HelpCenterTab::PlannedExtensions,
+                                        ));
+                                    }),
+                                ),
+                                (
+                                    "Help: Bundled Skills",
+                                    "Inspect embedded SKILL.md resources exposed via MCP",
+                                    Box::new(|app| {
+                                        app.active_dialog =
+                                            Some(ActiveDialog::HelpCenter(HelpCenterTab::Skills));
+                                    }),
+                                ),
+                                (
+                                    "Help: Project Files & Docs",
+                                    "Browse HELP.md, PRD, Tiered Plan, Tools, and Other Crafts",
+                                    Box::new(|app| {
+                                        app.active_dialog = Some(ActiveDialog::HelpCenter(
+                                            HelpCenterTab::ProjectDocs,
+                                        ));
                                     }),
                                 ),
                                 (
@@ -881,6 +1027,7 @@ impl TravelCraftApp {
                                     let shortcuts = [
                                         ("Ctrl/Cmd + K", "Open Command Palette", "Global"),
                                         ("Ctrl/Cmd + Shift + P", "Open Command Palette", "Global"),
+                                        ("Ctrl/Cmd + J", "Toggle AI Chat Dock", "Global"),
                                         ("F1 / Ctrl + /", "Open Keyboard Shortcuts", "Global"),
                                         ("Ctrl/Cmd + ,", "Preferences & Settings", "Global"),
                                         ("Ctrl/Cmd + N", "New Itinerary", "File"),
@@ -908,47 +1055,208 @@ impl TravelCraftApp {
                         self.active_dialog = None;
                     }
                 }
-                ActiveDialog::ProjectDocs => {
+                ActiveDialog::HelpCenter(mut tab) => {
                     let mut open = true;
-                    egui::Window::new("Project Files & Documentation")
+                    egui::Window::new("TravelCraft Help Center (HELP.md)")
                         .open(&mut open)
                         .collapsible(false)
-                        .resizable(false)
-                        .default_width(520.0)
+                        .resizable(true)
+                        .default_width(680.0)
+                        .default_height(520.0)
                         .show(ctx, |ui| {
-                            ui.label(egui::RichText::new("TravelCraft Sovereign Documentation Suite").strong().color(GOLD));
-                            ui.label("Located in repo root and docs/ directory:");
+                            ui.horizontal_wrapped(|ui| {
+                                for candidate in HelpCenterTab::ALL {
+                                    if ui
+                                        .selectable_label(tab == candidate, candidate.label())
+                                        .clicked()
+                                    {
+                                        tab = candidate;
+                                    }
+                                }
+                            });
+                            self.active_dialog = Some(ActiveDialog::HelpCenter(tab));
                             ui.separator();
 
-                            let docs = [
-                                (
-                                    "docs/PRD.md",
-                                    "Product Requirements Document: Baedeker spirit, 3 front ends, offline sovereignty, Honest Gaps",
-                                ),
-                                (
-                                    "docs/TIERED_PLAN.md",
-                                    "4-Tier ArtCraft delivery and verification plan (Core -> MCP -> Desktop -> Menu Bar & Hardening)",
-                                ),
-                                (
-                                    "docs/TOOLS.md",
-                                    "FastMCP 13-Tool specification, durable SQLite state, parameter validation, and Overpass caching",
-                                ),
-                                (
-                                    "CRAFT_MENU_BAR_STANDARD.md",
-                                    "Universal Storytold Craft App top menu bar standard (Pattern 2 Viewport-Centric Workstation)",
-                                ),
-                                (
-                                    "AGENTS.md",
-                                    "Agent engineering rules: pure Rust, LF endings, zero unsafe, SQLite WAL persistence",
-                                ),
-                            ];
-
-                            for (doc_name, doc_desc) in &docs {
-                                ui.group(|ui| {
-                                    ui.label(egui::RichText::new(*doc_name).strong().color(TEAL));
-                                    ui.label(egui::RichText::new(*doc_desc).small());
-                                });
-                            }
+                            egui::ScrollArea::vertical().show(ui, |ui| match tab {
+                                HelpCenterTab::GetStarted => {
+                                    ui.label(
+                                        egui::RichText::new("What TravelCraft Is & Does")
+                                            .strong()
+                                            .color(GOLD),
+                                    );
+                                    ui.label("TravelCraft (Baedeker 2030) is a pure-Rust chrono-cartography studio and local-first travel guide platform with 3 front ends: Desktop GUI, travelcraft-cli, and travelcraft-mcp (15 tools + 2 bundled skills).");
+                                    ui.add_space(6.0);
+                                    ui.label(
+                                        egui::RichText::new("5-Step First-Run Tour")
+                                            .strong()
+                                            .color(TEAL),
+                                    );
+                                    let steps = [
+                                        ("1. Launch with Demo State", "Opens on the high-contrast City Map / Chrono-Map with Austria (AT, 8 waypoints) and Japan (JP, 9 waypoints) preloaded."),
+                                        ("2. Explore Chrono-Waypoints", "Pick AT or JP in the left inspector and click a waypoint (e.g. Stephansdom or Nihonbashi) to view era & sensory atmosphere profiles."),
+                                        ("3. Plan Route or Stay Itinerary", "Use Commands -> Optimize Route (Haversine TSP) or the Itineraries tab (1/2/3/5/7/14 days) and Trip Kanban board."),
+                                        ("4. SightLens & AI Chat (Ctrl+J)", "Identify sights by GPS + hint (e.g. 48.2085, 16.3738 + stephansdom), ask grounded questions in Ctrl+J AI Chat Dock, and save reflections with Ctrl+S."),
+                                        ("5. Export or Serve", "Export an HTML Baedeker dossier (Ctrl+E) or run `travelcraft-cli serve 14130` for mobile/iPad browsing."),
+                                    ];
+                                    for (title, body) in steps {
+                                        ui.group(|ui| {
+                                            ui.label(egui::RichText::new(title).strong().color(GOLD));
+                                            ui.label(body);
+                                        });
+                                    }
+                                    ui.add_space(6.0);
+                                    ui.label(
+                                        egui::RichText::new("Core Functions")
+                                            .strong()
+                                            .color(TEAL),
+                                    );
+                                    ui.label("• Chrono-GIS & City Maps: WGS84 projection, giscraft-core Haversine distances, qgiscraft (:11254) Z16/Z8 tiles.");
+                                    ui.label("• Itineraries & Trip Kanban: 1/2/3/5/7/14-day plans + SQLite-backed Vienna/Tokyo Kanban board.");
+                                    ui.label("• SightLens & Sight Chat: Offline catalogue (Stephansdom, KHM Caravaggio, Klimt Kiss) + Ollama/LM Studio/Gemini/OpenAI/Anthropic or OFFLINE BLOB.");
+                                    ui.label("• Nearby & Fleet Transit: Overpass POI queries (24h SQLite cache) + gtfs-mcp (:10913) & publictransport-mcp (:11170) with offline fallback.");
+                                }
+                                HelpCenterTab::Usage => {
+                                    ui.label(
+                                        egui::RichText::new("Usage across GUI, CLI & MCP")
+                                            .strong()
+                                            .color(GOLD),
+                                    );
+                                    ui.group(|ui| {
+                                        ui.label(egui::RichText::new("Desktop GUI (travelcraft)").strong().color(TEAL));
+                                        ui.label("• 8-Menu Bookend Bar: File, Edit, View, Insert, Modify, Commands, Window, Help.");
+                                        ui.label("• Ctrl+J toggles the AI Chat Dock (read-only tools run automatically; mutating journal/capture tools ask confirmation).");
+                                        ui.label("• Ctrl+K / Ctrl+Shift+P opens the Command Palette; F1 / Ctrl+/ opens Keyboard Shortcuts.");
+                                    });
+                                    ui.group(|ui| {
+                                        ui.label(egui::RichText::new("CLI (travelcraft-cli)").strong().color(TEAL));
+                                        ui.monospace("travelcraft-cli countries");
+                                        ui.monospace("travelcraft-cli plan JP");
+                                        ui.monospace("travelcraft-cli itinerary AT 3");
+                                        ui.monospace("travelcraft-cli identify 48.2085 16.3738 stephansdom");
+                                        ui.monospace("travelcraft-cli nearby bicycle_repair --place Wien --radius 1500");
+                                        ui.monospace("travelcraft-cli transit status");
+                                        ui.monospace("travelcraft-cli serve 14130");
+                                    });
+                                    ui.group(|ui| {
+                                        ui.label(egui::RichText::new("MCP Server (travelcraft-mcp, stdio JSON-RPC 2024-11-05)").strong().color(TEAL));
+                                        ui.label("• 15 tools: travel_status, travel_countries, travel_inspect, travel_knowledge_tree, travel_plan_route, travel_itinerary, travel_identify_sight, travel_sight_chat, travel_sightlens_capture, travel_journal_add, travel_journal_list, travel_geocode, travel_nearby, travel_transit, travelcraft_skill_read.");
+                                        ui.label("• Resources: resources/list & resources/read serve skill://travelcraft-advisor/SKILL.md and skill://travelcraft-workflow/SKILL.md.");
+                                    });
+                                }
+                                HelpCenterTab::TipsAndTricks => {
+                                    ui.label(
+                                        egui::RichText::new("Tips & Tricks")
+                                            .strong()
+                                            .color(GOLD),
+                                    );
+                                    let tips = [
+                                        ("Fast Keyboard Flow", "Use Ctrl+K to jump to any tab or command, Ctrl+J for the AI Chat Dock, Ctrl+F to focus the active waypoint, and Ctrl+E to export HTML."),
+                                        ("Non-Destructive Exploration", "Run `travel_transit` with `operation: \"status\"` before `live`, and test `travel_sight_chat` before logging permanent entries with `travel_sightlens_capture`."),
+                                        ("Avoid Overpass Truncation", "`travel_nearby` caps raw Overpass fetches at 300 elements (`truncated: true`). Use smaller `radius_m` (500–1000 m) in dense centers like Vienna or Tokyo."),
+                                        ("Isolate Expedition Databases", "Set `TRAVELCRAFT_DATA` to a trip-specific directory to keep separate SQLite journal, Kanban, and Overpass cache files per journey."),
+                                        ("Pin an Overpass Mirror", "Set `TRAVELCRAFT_OVERPASS_URL` if a public Overpass instance is slow or rate-limiting."),
+                                    ];
+                                    for (t, b) in tips {
+                                        ui.group(|ui| {
+                                            ui.label(egui::RichText::new(t).strong().color(TEAL));
+                                            ui.label(b);
+                                        });
+                                    }
+                                }
+                                HelpCenterTab::PitfallsAndSafety => {
+                                    ui.label(
+                                        egui::RichText::new("Common Pitfalls & Safety Gates")
+                                            .strong()
+                                            .color(GOLD),
+                                    );
+                                    let pitfalls = [
+                                        ("Timezone & DST Shifts", "Austria (Europe/Vienna, CET/CEST) observes DST while Japan (Asia/Tokyo, JST) does not. Journal timestamps use RFC 3339, while offline transit blobs and raw OSM `opening_hours` reflect local wall-clock time and are never evaluated."),
+                                        ("Stale Transit Schedules", "When gtfs-mcp (:10913) or publictransport-mcp (:11170) is down, `travel_transit` succeeds with `source: \"offline\"`. Treat offline blobs as orientation baselines, not live departure guarantees."),
+                                        ("Coordinate & Bounding-Box Swaps", "TravelCraft uses (lat, lon) WGS84 decimal degrees (e.g. Vienna 48.2085, 16.3738). Swapping to GeoJSON (lon, lat) places points in the wrong hemisphere. Note: iPhone hotspots share internet only, NOT GPS—use Immich original EXIF or manual coords."),
+                                        ("Offline Map & Overpass Cache", "`travel_nearby` caches for 24 h and returns `stale: true` with a warning when live mirrors fail. OSM text is untrusted (control chars stripped, capped at 200 chars). `travel_geocode` is a small offline demo geocoder."),
+                                        ("SQLite Durability Gate", "SQLite uses WAL + synchronous=FULL at %LOCALAPPDATA%\\travelcraft\\travelcraft.db. If the DB cannot be opened, travelcraft-mcp exits loudly rather than falling back to in-memory storage."),
+                                    ];
+                                    for (t, b) in pitfalls {
+                                        ui.group(|ui| {
+                                            ui.label(egui::RichText::new(t).strong().color(ROSE));
+                                            ui.label(b);
+                                        });
+                                    }
+                                }
+                                HelpCenterTab::PlannedExtensions => {
+                                    ui.label(
+                                        egui::RichText::new("Planned Extensions (Honest Roadmap)")
+                                            .strong()
+                                            .color(GOLD),
+                                    );
+                                    let roadmap = [
+                                        ("Additional Country Editions", "Expand `travelcraft-baedeker` beyond Austria (AT) and Japan (JP) with new chrono-waypoint and sensory atmosphere editions."),
+                                        ("Local `opening_hours` Evaluator", "Parse and evaluate raw OSM `opening_hours` tags locally so 'is it open now?' works offline."),
+                                        ("Expanded Offline SightLens Catalogue", "Grow deterministic GPS + hint coverage for regional museums and landmarks (visual image-model classification remains out of scope)."),
+                                        ("Deeper GISCraft Integration", "Richer offline vector tile styling and elevation profiles paired with `giscraft`."),
+                                    ];
+                                    for (t, b) in roadmap {
+                                        ui.group(|ui| {
+                                            ui.label(egui::RichText::new(t).strong().color(TEAL));
+                                            ui.label(b);
+                                        });
+                                    }
+                                }
+                                HelpCenterTab::Skills => {
+                                    ui.label(
+                                        egui::RichText::new("Bundled TravelCraft Skills (MCP resources/list & travelcraft_skill_read)")
+                                            .strong()
+                                            .color(GOLD),
+                                    );
+                                    for s in travelcraft_core::skills::SKILLS {
+                                        ui.group(|ui| {
+                                            ui.label(egui::RichText::new(format!("{}  ({})", s.name, s.uri)).strong().color(TEAL));
+                                            ui.label(egui::RichText::new(s.description).small().color(MIST));
+                                            ui.separator();
+                                            ui.monospace(s.content);
+                                        });
+                                    }
+                                }
+                                HelpCenterTab::ProjectDocs => {
+                                    ui.label(
+                                        egui::RichText::new("Project Files & Documentation")
+                                            .strong()
+                                            .color(GOLD),
+                                    );
+                                    let docs = [
+                                        ("HELP.md", "Comprehensive field manual: Get Started, Functions, Usage, Tips, Pitfalls & Safety, Planned Extensions, Other Crafts"),
+                                        ("docs/PRD.md", "Product Requirements Document: Baedeker spirit, 3 front ends, offline sovereignty, Honest Gaps"),
+                                        ("docs/TIERED_PLAN.md", "4-Tier ArtCraft delivery and verification plan"),
+                                        ("docs/TOOLS.md", "FastMCP 15-Tool specification, durable SQLite state, parameter validation, and Overpass caching"),
+                                        ("AGENTS.md", "Agent engineering rules: pure Rust, LF endings, zero unsafe, SQLite WAL persistence"),
+                                    ];
+                                    for (doc_name, doc_desc) in &docs {
+                                        ui.group(|ui| {
+                                            ui.label(egui::RichText::new(*doc_name).strong().color(TEAL));
+                                            ui.label(egui::RichText::new(*doc_desc).small());
+                                        });
+                                    }
+                                    ui.add_space(6.0);
+                                    ui.label(
+                                        egui::RichText::new("Other Crafts & Fleet Companions")
+                                            .strong()
+                                            .color(GOLD),
+                                    );
+                                    let crafts = [
+                                        ("GISCraft (giscraft-core / :11254)", "WGS84 tile math, geodesic Haversine distances, and slippy tiles. Full GIS analysis & OSM editing belong in GISCraft."),
+                                        ("GTFS MCP (:10913)", "Static transit stops and timetables for `travel_transit` (`stops`, `departures`)."),
+                                        ("PublicTransport MCP (:11170)", "Live Vienna OGD departures and service disruptions for `travel_transit` (`live`, `disruptions`)."),
+                                        ("Japanophile MCP (:11193) & Vienna Life (:10922)", "Companion status probes and vendored offline travel knowledge."),
+                                        ("Speech MCP (:10909 / FunASR :10914)", "Optional TTS .wav synthesis and voice transcription for Sight Chat."),
+                                    ];
+                                    for (c_name, c_desc) in &crafts {
+                                        ui.group(|ui| {
+                                            ui.label(egui::RichText::new(*c_name).strong().color(TEAL));
+                                            ui.label(egui::RichText::new(*c_desc).small());
+                                        });
+                                    }
+                                }
+                            });
                         });
                     if !open {
                         self.active_dialog = None;
@@ -1197,7 +1505,7 @@ fn epoch_color(year_ad: i32) -> egui::Color32 {
 
 impl eframe::App for TravelCraftApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        if ui.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::J)) {
+        if ui.input(|i| (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(egui::Key::J)) {
             self.chat_dock.open = !self.chat_dock.open;
         }
         if self.chat_dock.busy || self.settings.scanning || self.settings.testing {
@@ -1396,8 +1704,12 @@ impl eframe::App for TravelCraftApp {
 
                 // Menu 3: View
                 ui.menu_button("View", |ui| {
-                    if ui.button("Map Canvas / Viewport").clicked() {
-                        self.active_tab = ActiveViewTab::ChronoMap;
+                    if ui.button("Vienna / Tokyo maps").clicked() {
+                        self.active_tab = ActiveViewTab::CityMap;
+                        ui.close();
+                    }
+                    if ui.button("Trip kanban").clicked() {
+                        self.active_tab = ActiveViewTab::Kanban;
                         ui.close();
                     }
                     if ui.button("Chrono-Waypoint Timeline").clicked() {
@@ -1438,9 +1750,12 @@ impl eframe::App for TravelCraftApp {
                         ui.close();
                     }
                     if ui.button("Center & Reset Map Viewport").clicked() {
-                        self.map_zoom = 1.0;
-                        self.map_pan = egui::Vec2::ZERO;
-                        self.status_msg = "Centered map viewport".to_string();
+                        self.reset_active_map();
+                        ui.close();
+                    }
+                    ui.separator();
+                    if ui.button("Country sketch (chrono map)").clicked() {
+                        self.active_tab = ActiveViewTab::ChronoMap;
                         ui.close();
                     }
                     ui.separator();
@@ -1534,13 +1849,18 @@ impl eframe::App for TravelCraftApp {
                 // Menu 7: Window
                 ui.menu_button("Window", |ui| {
                     if ui.button("Reset Layout").clicked() {
-                        self.active_tab = ActiveViewTab::ChronoMap;
-                        self.status_msg = "Reset workstation layout to default".to_string();
+                        self.active_tab = ActiveViewTab::CityMap;
+                        self.city_canvas.go_home();
+                        self.status_msg = "Reset workstation layout to the city map".to_string();
                         ui.close();
                     }
                     ui.separator();
                     if ui.button("Map Viewport").clicked() {
-                        self.active_tab = ActiveViewTab::ChronoMap;
+                        self.active_tab = ActiveViewTab::CityMap;
+                        ui.close();
+                    }
+                    if ui.button("Trip kanban").clicked() {
+                        self.active_tab = ActiveViewTab::Kanban;
                         ui.close();
                     }
                     if ui.button("Sights Inspector").clicked() {
@@ -1553,7 +1873,7 @@ impl eframe::App for TravelCraftApp {
                     }
                 });
 
-                // Menu 8: Help (Mandatory 5-Dialog Suite)
+                // Menu 8: Help (10-Item Craft Help Menu Standard)
                 ui.menu_button("Help", |ui| {
                     if ui.button("Command Palette... (Ctrl+K)").clicked() {
                         self.active_dialog = Some(ActiveDialog::CommandPalette);
@@ -1563,15 +1883,45 @@ impl eframe::App for TravelCraftApp {
                         self.active_dialog = Some(ActiveDialog::KeyboardShortcuts);
                         ui.close();
                     }
-                    if ui.button("Project Files & Docs...").clicked() {
-                        self.active_dialog = Some(ActiveDialog::ProjectDocs);
+                    ui.separator();
+                    if ui.button("Getting Started...").clicked() {
+                        self.active_dialog =
+                            Some(ActiveDialog::HelpCenter(HelpCenterTab::GetStarted));
                         ui.close();
                     }
+                    if ui.button("Usage (GUI, CLI & MCP)...").clicked() {
+                        self.active_dialog = Some(ActiveDialog::HelpCenter(HelpCenterTab::Usage));
+                        ui.close();
+                    }
+                    if ui.button("Tips & Tricks...").clicked() {
+                        self.active_dialog =
+                            Some(ActiveDialog::HelpCenter(HelpCenterTab::TipsAndTricks));
+                        ui.close();
+                    }
+                    if ui.button("Common Pitfalls & Safety...").clicked() {
+                        self.active_dialog =
+                            Some(ActiveDialog::HelpCenter(HelpCenterTab::PitfallsAndSafety));
+                        ui.close();
+                    }
+                    if ui.button("Planned Extensions...").clicked() {
+                        self.active_dialog =
+                            Some(ActiveDialog::HelpCenter(HelpCenterTab::PlannedExtensions));
+                        ui.close();
+                    }
+                    if ui.button("Bundled Skills...").clicked() {
+                        self.active_dialog = Some(ActiveDialog::HelpCenter(HelpCenterTab::Skills));
+                        ui.close();
+                    }
+                    if ui.button("Project Files & Docs...").clicked() {
+                        self.active_dialog =
+                            Some(ActiveDialog::HelpCenter(HelpCenterTab::ProjectDocs));
+                        ui.close();
+                    }
+                    ui.separator();
                     if ui.button("Licenses & Notices...").clicked() {
                         self.active_dialog = Some(ActiveDialog::LicensesNotices);
                         ui.close();
                     }
-                    ui.separator();
                     if ui.button("About TravelCraft").clicked() {
                         self.active_dialog = Some(ActiveDialog::About);
                         ui.close();
@@ -1613,6 +1963,7 @@ impl eframe::App for TravelCraftApp {
                         if ui.button("🇯🇵 JapanCraft (Edo to Neo-Tokyo)").clicked() {
                             self.selected_country_code = "JP".to_string();
                             self.selected_waypoint_id = Some("jp_nihonbashi".to_string());
+                            self.city_canvas.set_city(travelcraft_core::cities::TravelCity::Tokyo);
                             self.optimized_route = self.engine.plan_optimized_route("JP").ok();
                             self.refresh_itinerary();
                             self.status_msg = "Loaded JapanCraft Edition".to_string();
@@ -1621,6 +1972,7 @@ impl eframe::App for TravelCraftApp {
                         if ui.button("🇦🇹 AustriaCraft (Habsburg to Alpine)").clicked() {
                             self.selected_country_code = "AT".to_string();
                             self.selected_waypoint_id = Some("at_stephansdom".to_string());
+                            self.city_canvas.set_city(travelcraft_core::cities::TravelCity::Vienna);
                             self.optimized_route = self.engine.plan_optimized_route("AT").ok();
                             self.refresh_itinerary();
                             self.status_msg = "Loaded AustriaCraft Edition".to_string();
@@ -1645,11 +1997,19 @@ impl eframe::App for TravelCraftApp {
             ui.horizontal_wrapped(|ui| {
                 ui.heading("TravelCraft - Baedeker 2030 Studio");
                 ui.separator();
+                if ui
+                    .selectable_label(self.active_tab == ActiveViewTab::CityMap, "Maps")
+                    .clicked()
+                {
+                    self.active_tab = ActiveViewTab::CityMap;
+                }
+                if ui
+                    .selectable_label(self.active_tab == ActiveViewTab::Kanban, "Kanban")
+                    .clicked()
+                {
+                    self.active_tab = ActiveViewTab::Kanban;
+                }
                 for (tab, key) in [
-                    (
-                        ActiveViewTab::ChronoMap,
-                        travelcraft_core::i18n::I18nKey::TabChronoMap,
-                    ),
                     (
                         ActiveViewTab::WaypointDetail,
                         travelcraft_core::i18n::I18nKey::TabWaypointDetail,
@@ -1985,6 +2345,24 @@ impl eframe::App for TravelCraftApp {
         // CENTRAL PANEL
         egui::CentralPanel::default().show(ui, |ui| {
             match self.active_tab {
+                ActiveViewTab::CityMap => {
+                    if let Some(pick) = city_map::show(ui, &mut self.city_canvas) {
+                        if pick.id.starts_with("at_") {
+                            self.selected_country_code = "AT".to_string();
+                            self.selected_waypoint_id = Some(pick.id.clone());
+                        } else if pick.id.starts_with("jp_") {
+                            self.selected_country_code = "JP".to_string();
+                            self.selected_waypoint_id = Some(pick.id.clone());
+                        }
+                        self.status_msg = format!("Map: {} ({:.4}, {:.4})", pick.name, pick.lat, pick.lon);
+                    }
+                }
+                ActiveViewTab::Kanban => {
+                    if let Some(jump) = kanban_view::show(ui, &self.engine, &mut self.kanban_draft)
+                    {
+                        self.open_on_map(jump.lat, jump.lon, &jump.label);
+                    }
+                }
                 ActiveViewTab::ChronoMap => {
                     big_heading(ui, "Chrono-Cartographic Interactive Map (WGS84 Mercator)");
                     body_text(
@@ -2651,11 +3029,8 @@ impl eframe::App for TravelCraftApp {
                                                 .size(14.0)
                                                 .color(ROSE),
                                             );
-                                            if ui.button("📍 Show on Chrono-Map").clicked() {
-                                                self.center_map_on(lat, lon, 3.8);
-                                                self.active_tab = ActiveViewTab::ChronoMap;
-                                                self.status_msg =
-                                                    format!("Viewing {} on map (GPS: {:.4}, {:.4})", item.title, lat, lon);
+                                            if ui.button("Show on map").clicked() {
+                                                self.open_on_map(lat, lon, &item.title);
                                             }
                                         });
                                     }
@@ -2692,7 +3067,7 @@ impl eframe::App for TravelCraftApp {
                                     .color(MIST),
                                 );
                                 ui.horizontal(|ui| {
-                                    if ui.button("📍 Focus on Chrono-Map").clicked() {
+                                    if ui.button("Show on map").clicked() {
                                         self.focus_selected();
                                     }
                                 });
@@ -3412,8 +3787,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         engine.import_region_pack(&sample_pack)?;
         let loaded_packs = engine.list_region_packs()?;
+        let kanban_seeded = engine.kanban_seed_cities()?;
+        let kanban_cards = engine.kanban_list()?.len();
+        let vienna_places =
+            travelcraft_core::cities::places_in_city(travelcraft_core::cities::TravelCity::Vienna)
+                .len();
+        let tokyo_places =
+            travelcraft_core::cities::places_in_city(travelcraft_core::cities::TravelCity::Tokyo)
+                .len();
 
-        let smoke_payload = json!({
+        let mut smoke_payload = json!({
             "app": "travelcraft",
             "version": "0.2.0",
             "status": "ready",
@@ -3422,6 +3805,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "has_menu_bar": true,
             "has_8_menu_bar": true,
             "has_5_dialog_help_suite": true,
+            "has_10_item_help_menu": true,
+            "has_bundled_skills": true,
+            "has_help_md": true,
             "has_command_palette": true,
             "has_region_pack_loader": true,
             "has_theme_toggle": true,
@@ -3446,6 +3832,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "qgis_map_tiles_zoom8": plan.covered_map_tiles_zoom10,
             "capabilities": ["ChronoCartography", "SensoryAtmosphere", "EdoToModern", "HabsburgToAlpine", "InteractiveJournal", "QgisGisIntegration", "StayItineraries", "SightLensIdentify", "SightChat", "DynamicRegionPacks", "CraftMenuBarStandard"]
         });
+        smoke_payload["has_city_maps"] = json!(true);
+        smoke_payload["has_kanban"] = json!(true);
+        smoke_payload["kanban_seeded"] = json!(kanban_seeded);
+        smoke_payload["kanban_cards"] = json!(kanban_cards);
+        smoke_payload["vienna_places"] = json!(vienna_places);
+        smoke_payload["tokyo_places"] = json!(tokyo_places);
+        if let Some(caps) = smoke_payload
+            .get_mut("capabilities")
+            .and_then(|v| v.as_array_mut())
+        {
+            caps.insert(0, json!("TripKanban"));
+            caps.insert(0, json!("CityMaps"));
+        }
         println!("[travelcraft] Smoke OK: {}", smoke_payload);
         return Ok(());
     }
