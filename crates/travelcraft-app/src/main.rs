@@ -1,3 +1,4 @@
+mod cartridge_view;
 mod chat_dock;
 mod city_map;
 mod kanban_view;
@@ -71,6 +72,8 @@ pub enum ActiveDialog {
 enum ActiveViewTab {
     CityMap,
     Kanban,
+    Cartridges,
+    Notebook,
     ChronoMap,
     WaypointDetail,
     SensoryAtmosphere,
@@ -157,6 +160,7 @@ pub struct TravelCraftApp {
     settings: settings_view::SettingsState,
     city_canvas: city_map::CityCanvas,
     kanban_draft: kanban_view::KanbanDraft,
+    cartridge_studio: cartridge_view::CartridgeStudioState,
 }
 
 impl TravelCraftApp {
@@ -236,6 +240,7 @@ impl TravelCraftApp {
             settings: settings_view::SettingsState::default(),
             city_canvas: city_map::CityCanvas::for_country("JP"),
             kanban_draft: kanban_view::KanbanDraft::default(),
+            cartridge_studio: cartridge_view::CartridgeStudioState::default(),
         })
     }
 
@@ -2009,6 +2014,18 @@ impl eframe::App for TravelCraftApp {
                 {
                     self.active_tab = ActiveViewTab::Kanban;
                 }
+                if ui
+                    .selectable_label(self.active_tab == ActiveViewTab::Cartridges, "Cartridges")
+                    .clicked()
+                {
+                    self.active_tab = ActiveViewTab::Cartridges;
+                }
+                if ui
+                    .selectable_label(self.active_tab == ActiveViewTab::Notebook, "Notebook")
+                    .clicked()
+                {
+                    self.active_tab = ActiveViewTab::Notebook;
+                }
                 for (tab, key) in [
                     (
                         ActiveViewTab::WaypointDetail,
@@ -3435,6 +3452,12 @@ impl eframe::App for TravelCraftApp {
                 }
                 ActiveViewTab::LlmSettings => {
                     settings_view::ui_llm_settings(ui, &mut self.settings, &mut self.chat_dock);
+                }
+                ActiveViewTab::Cartridges => {
+                    cartridge_view::ui_cartridges_tab(ui, &self.engine, &mut self.cartridge_studio);
+                }
+                ActiveViewTab::Notebook => {
+                    cartridge_view::ui_notebook_tab(ui, &self.engine, &mut self.cartridge_studio);
                 }
             }
         });

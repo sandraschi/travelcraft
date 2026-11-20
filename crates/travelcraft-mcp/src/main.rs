@@ -179,6 +179,107 @@ fn tools() -> Value {
             json!({ "name": { "type": "string" } }),
             &["name"],
         ),
+        tool(
+            "travel_cartridge",
+            "Country & City Cartridge CRUD (offline Baedeker packs with Country->City inheritance) plus giscraft tile planning. Operations: list, get, resolve, create, update, delete, import, export, seed_venice, seed_japan, seed_all, tile_plan, item_upsert, item_remove.",
+            json!({
+                "operation": {
+                    "type": "string",
+                    "enum": ["list", "get", "resolve", "create", "update", "delete", "import", "export", "seed_venice", "seed_japan", "seed_all", "tile_plan", "item_upsert", "item_remove"]
+                },
+                "id": { "type": "string", "description": "Cartridge id slug, e.g. it, it-venice, jp, jp-kyoto" },
+                "kind": { "type": "string", "enum": ["country", "city"], "description": "Filter for list" },
+                "country_code": { "type": "string", "description": "2-letter ISO code filter for list" },
+                "parent_id": { "type": "string", "description": "Parent country cartridge id filter for list" },
+                "cascade": { "type": "boolean", "description": "For delete: also delete child city cartridges" },
+                "cartridge": { "type": "object", "description": "Full Cartridge JSON object for create" },
+                "patch": { "type": "object", "description": "CartridgeMetaPatch JSON object for update" },
+                "json": { "type": "string", "description": "Raw .tcpack.json string for import" },
+                "item_type": { "type": "string", "enum": ["waypoint", "artwork", "spot", "itinerary", "gotcha", "zone", "event", "media"] },
+                "item": { "type": "object", "description": "Item payload for item_upsert" },
+                "item_key": { "type": "string", "description": "Item id (or total_days for itinerary) for item_remove" },
+                "min_zoom": { "type": "integer", "description": "For tile_plan (default 12)" },
+                "max_zoom": { "type": "integer", "description": "For tile_plan (default 15)" },
+            }),
+            &["operation"],
+        ),
+        tool(
+            "travel_lens",
+            "LensCraft real-photo identification (via lenscraft-core + local Ollama vision) cross-matched against a TravelCraft cartridge and optionally logged to the Universal Notebook. Operations: status, identify.",
+            json!({
+                "operation": { "type": "string", "enum": ["status", "identify"] },
+                "photo_path": { "type": "string", "description": "Local path to JPEG/PNG photo for identify" },
+                "cartridge_id": { "type": "string", "description": "Optional cartridge id to cross-match artworks/waypoints" },
+                "place": { "type": "string", "description": "Optional venue hint, e.g. Scuola Grande di San Rocco" },
+                "hint": { "type": "string", "description": "Optional visitor note" },
+                "lat": { "type": "number" },
+                "lon": { "type": "number" },
+                "language": { "type": "string", "description": "Output language: en, de, ja (default en)" },
+                "model": { "type": "string", "description": "Ollama vision model (default gemma4:12b)" },
+                "log_trip_id": { "type": "string", "description": "If set, logs the identified photo into this Universal Notebook trip" },
+            }),
+            &["operation"],
+        ),
+        tool(
+            "travel_translate",
+            "Offline cartridge phrasebook lookup + companion local Ollama travel translation. Operations: phrases, translate.",
+            json!({
+                "operation": { "type": "string", "enum": ["phrases", "translate"] },
+                "cartridge_id": { "type": "string", "description": "Cartridge id for offline phrasebook lookup (e.g. it-venice, jp-kyoto, fr-paris, at-salzburg)" },
+                "query": { "type": "string", "description": "Optional keyword filter for phrases" },
+                "text": { "type": "string", "description": "Text to translate (for operation=translate)" },
+                "target_language": { "type": "string", "description": "Target language, e.g. Italian, Japanese, French, German" },
+                "model": { "type": "string", "description": "Optional Ollama model (default qwen2.5:7b)" },
+            }),
+            &["operation"],
+        ),
+        tool(
+            "travel_trip",
+            "Universal Travel Notebook Trip container CRUD & Markdown travelogue export. Operations: list, get, create, update, delete, export_markdown.",
+            json!({
+                "operation": {
+                    "type": "string",
+                    "enum": ["list", "get", "create", "update", "delete", "export_markdown"]
+                },
+                "trip_id": { "type": "string" },
+                "title": { "type": "string" },
+                "start_date": { "type": "string", "description": "YYYY-MM-DD" },
+                "end_date": { "type": "string", "description": "YYYY-MM-DD" },
+                "cartridge_ids": { "type": "array", "items": { "type": "string" } },
+                "status": { "type": "string", "enum": ["planned", "active", "completed"] },
+                "notes": { "type": "string" },
+                "delete_entries": { "type": "boolean", "description": "For delete: also remove entries (default false keeps them unlinked)" },
+            }),
+            &["operation"],
+        ),
+        tool(
+            "travel_notebook",
+            "Universal Travel Notebook entries CRUD with scoped queries (This Trip | This City | This Country | All). Operations: add, get, update, delete, query.",
+            json!({
+                "operation": {
+                    "type": "string",
+                    "enum": ["add", "get", "update", "delete", "query"]
+                },
+                "entry_id": { "type": "string" },
+                "trip_id": { "type": "string" },
+                "cartridge_id": { "type": "string" },
+                "country_code": { "type": "string" },
+                "waypoint_id": { "type": "string" },
+                "kind": { "type": "string", "enum": ["reflection", "photo", "food", "logistics", "expense", "idea"] },
+                "day_index": { "type": "integer" },
+                "title": { "type": "string" },
+                "body": { "type": "string" },
+                "sensory_notes": { "type": "string" },
+                "photo_uris": { "type": "array", "items": { "type": "string" } },
+                "lat": { "type": "number" },
+                "lon": { "type": "number" },
+                "tags": { "type": "array", "items": { "type": "string" } },
+                "tag": { "type": "string", "description": "Single tag filter for query" },
+                "search": { "type": "string", "description": "Substring search for query" },
+                "limit": { "type": "integer", "description": "1 to 1000 for query (default 100)" },
+            }),
+            &["operation"],
+        ),
     ])
 }
 
@@ -331,7 +432,358 @@ fn dispatch(engine: &TravelCraftEngine, name: &str, args: &Value) -> Res {
             let n = str_arg(args, "name")?;
             travelcraft_core::skills::skill_read(n).map_err(|e| ("not_found", e))
         }
+        "travel_cartridge" => dispatch_cartridge(engine, args),
+        "travel_lens" => dispatch_lens(engine, args),
+        "travel_translate" => dispatch_translate(engine, args),
+        "travel_trip" => dispatch_trip(engine, args),
+        "travel_notebook" => dispatch_notebook(engine, args),
         other => Err(("not_found", format!("unknown tool: {other}"))),
+    }
+}
+
+fn dispatch_cartridge(engine: &TravelCraftEngine, args: &Value) -> Res {
+    use travelcraft_baedeker::cartridge::{Cartridge, CartridgeKind};
+    use travelcraft_core::cartridges::{CartridgeFilter, CartridgeItem, CartridgeMetaPatch};
+
+    let op = str_arg(args, "operation")?;
+    match op {
+        "list" => {
+            let kind = match args.get("kind").and_then(Value::as_str) {
+                Some(k) => Some(CartridgeKind::parse(k).ok_or((
+                    "invalid",
+                    format!("invalid kind '{k}'; expected country|city"),
+                ))?),
+                None => None,
+            };
+            let filter = CartridgeFilter {
+                kind,
+                country_code: args
+                    .get("country_code")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                parent_id: args
+                    .get("parent_id")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+            };
+            to_json(&engine.cartridge_list(&filter).map_err(engine_err)?)
+        }
+        "get" => to_json(
+            &engine
+                .cartridge_get(str_arg(args, "id")?)
+                .map_err(engine_err)?,
+        ),
+        "resolve" => to_json(
+            &engine
+                .cartridge_resolve(str_arg(args, "id")?)
+                .map_err(engine_err)?,
+        ),
+        "create" => {
+            let raw = args
+                .get("cartridge")
+                .ok_or(("invalid", "missing 'cartridge' object".to_string()))?;
+            let c: Cartridge =
+                serde_json::from_value(raw.clone()).map_err(|e| ("invalid", e.to_string()))?;
+            to_json(&engine.cartridge_create(&c).map_err(engine_err)?)
+        }
+        "update" => {
+            let id = str_arg(args, "id")?;
+            let raw = args
+                .get("patch")
+                .ok_or(("invalid", "missing 'patch' object".to_string()))?;
+            let patch: CartridgeMetaPatch =
+                serde_json::from_value(raw.clone()).map_err(|e| ("invalid", e.to_string()))?;
+            to_json(
+                &engine
+                    .cartridge_update_meta(id, &patch)
+                    .map_err(engine_err)?,
+            )
+        }
+        "delete" => {
+            let id = str_arg(args, "id")?;
+            let cascade = args
+                .get("cascade")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let deleted = engine.cartridge_delete(id, cascade).map_err(engine_err)?;
+            Ok(json!({ "success": true, "deleted": deleted }))
+        }
+        "import" => {
+            let raw = str_arg(args, "json")?;
+            to_json(&engine.cartridge_import_json(raw).map_err(engine_err)?)
+        }
+        "export" => {
+            let id = str_arg(args, "id")?;
+            let exported = engine.cartridge_export_json(id).map_err(engine_err)?;
+            Ok(json!({ "id": id, "json": exported }))
+        }
+        "seed_venice" => to_json(&engine.cartridge_seed_venice().map_err(engine_err)?),
+        "seed_japan" => to_json(&engine.cartridge_seed_japan().map_err(engine_err)?),
+        "seed_all" => to_json(&engine.cartridge_seed_all().map_err(engine_err)?),
+        "tile_plan" => {
+            let id = str_arg(args, "id")?;
+            let min_z = args
+                .get("min_zoom")
+                .and_then(Value::as_u64)
+                .and_then(|v| u8::try_from(v).ok())
+                .unwrap_or(12);
+            let max_z = args
+                .get("max_zoom")
+                .and_then(Value::as_u64)
+                .and_then(|v| u8::try_from(v).ok())
+                .unwrap_or(15);
+            to_json(
+                &engine
+                    .cartridge_tile_plan(id, min_z, max_z)
+                    .map_err(engine_err)?,
+            )
+        }
+        "item_upsert" => {
+            let id = str_arg(args, "id")?;
+            let item_type = str_arg(args, "item_type")?;
+            let item_val = args
+                .get("item")
+                .ok_or(("invalid", "missing 'item' object".to_string()))?;
+            let tagged = json!({ "item_type": item_type, "item": item_val });
+            let item: CartridgeItem =
+                serde_json::from_value(tagged).map_err(|e| ("invalid", e.to_string()))?;
+            to_json(&engine.cartridge_item_upsert(id, item).map_err(engine_err)?)
+        }
+        "item_remove" => {
+            let id = str_arg(args, "id")?;
+            let item_type = str_arg(args, "item_type")?;
+            let item_key = str_arg(args, "item_key")?;
+            to_json(
+                &engine
+                    .cartridge_item_remove(id, item_type, item_key)
+                    .map_err(engine_err)?,
+            )
+        }
+        other => Err(("invalid", format!("unknown cartridge operation: {other}"))),
+    }
+}
+
+fn dispatch_lens(engine: &TravelCraftEngine, args: &Value) -> Res {
+    use travelcraft_core::lens::LensIdentifyRequest;
+
+    let op = str_arg(args, "operation")?;
+    let opt_text = |k: &str| args.get(k).and_then(Value::as_str).map(str::to_string);
+    match op {
+        "status" => to_json(
+            &engine
+                .lens_status(args.get("model").and_then(Value::as_str))
+                .map_err(engine_err)?,
+        ),
+        "identify" => {
+            let req = LensIdentifyRequest {
+                photo_path: str_arg(args, "photo_path")?.to_string(),
+                cartridge_id: opt_text("cartridge_id"),
+                place: opt_text("place"),
+                hint: opt_text("hint"),
+                lat: args.get("lat").and_then(Value::as_f64),
+                lon: args.get("lon").and_then(Value::as_f64),
+                language: opt_text("language"),
+                model: opt_text("model"),
+                log_trip_id: opt_text("log_trip_id"),
+            };
+            to_json(&engine.lens_identify(&req).map_err(engine_err)?)
+        }
+        other => Err(("invalid", format!("unknown lens operation: {other}"))),
+    }
+}
+
+fn dispatch_translate(engine: &TravelCraftEngine, args: &Value) -> Res {
+    let op = str_arg(args, "operation")?;
+    match op {
+        "phrases" => {
+            let cid = str_arg(args, "cartridge_id")?;
+            let q = args.get("query").and_then(Value::as_str);
+            to_json(&engine.translate_phrases(cid, q).map_err(engine_err)?)
+        }
+        "translate" => {
+            let text = str_arg(args, "text")?;
+            let target = str_arg(args, "target_language")?;
+            let cid = args.get("cartridge_id").and_then(Value::as_str);
+            let model = args.get("model").and_then(Value::as_str);
+            to_json(
+                &engine
+                    .translate_text(text, target, cid, model)
+                    .map_err(engine_err)?,
+            )
+        }
+        other => Err(("invalid", format!("unknown translate operation: {other}"))),
+    }
+}
+
+fn dispatch_trip(engine: &TravelCraftEngine, args: &Value) -> Res {
+    use travelcraft_core::notebook::{NewTrip, TripPatch, TripStatus};
+
+    let op = str_arg(args, "operation")?;
+    let opt_text = |k: &str| args.get(k).and_then(Value::as_str).map(str::to_string);
+    let opt_str_vec = |k: &str| -> Option<Vec<String>> {
+        args.get(k).and_then(Value::as_array).map(|arr| {
+            arr.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+    };
+    let opt_status = || -> Result<Option<TripStatus>, Fail> {
+        match args.get("status").and_then(Value::as_str) {
+            Some(s) => Ok(Some(TripStatus::parse(s).ok_or((
+                "invalid",
+                format!("invalid status '{s}'; expected planned|active|completed"),
+            ))?)),
+            None => Ok(None),
+        }
+    };
+
+    match op {
+        "list" => to_json(&engine.trip_list().map_err(engine_err)?),
+        "get" => to_json(
+            &engine
+                .trip_get(str_arg(args, "trip_id")?)
+                .map_err(engine_err)?,
+        ),
+        "create" => {
+            let req = NewTrip {
+                trip_id: opt_text("trip_id"),
+                title: str_arg(args, "title")?.to_string(),
+                start_date: opt_text("start_date"),
+                end_date: opt_text("end_date"),
+                cartridge_ids: opt_str_vec("cartridge_ids").unwrap_or_default(),
+                status: opt_status()?.unwrap_or(TripStatus::Planned),
+                notes: opt_str(args, "notes", "").to_string(),
+            };
+            to_json(&engine.trip_create(&req).map_err(engine_err)?)
+        }
+        "update" => {
+            let id = str_arg(args, "trip_id")?;
+            let patch = TripPatch {
+                title: opt_text("title"),
+                start_date: opt_text("start_date"),
+                end_date: opt_text("end_date"),
+                cartridge_ids: opt_str_vec("cartridge_ids"),
+                status: opt_status()?,
+                notes: opt_text("notes"),
+            };
+            to_json(&engine.trip_update(id, &patch).map_err(engine_err)?)
+        }
+        "delete" => {
+            let id = str_arg(args, "trip_id")?;
+            let delete_entries = args
+                .get("delete_entries")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            engine.trip_delete(id, delete_entries).map_err(engine_err)?;
+            Ok(json!({ "success": true, "trip_id": id }))
+        }
+        "export_markdown" => {
+            let id = str_arg(args, "trip_id")?;
+            let md = engine.trip_export_markdown(id).map_err(engine_err)?;
+            Ok(json!({ "trip_id": id, "markdown": md }))
+        }
+        other => Err(("invalid", format!("unknown trip operation: {other}"))),
+    }
+}
+
+fn dispatch_notebook(engine: &TravelCraftEngine, args: &Value) -> Res {
+    use travelcraft_core::notebook::{
+        NewNotebookEntry, NotebookKind, NotebookPatch, NotebookQuery,
+    };
+
+    let op = str_arg(args, "operation")?;
+    let opt_text = |k: &str| args.get(k).and_then(Value::as_str).map(str::to_string);
+    let opt_str_vec = |k: &str| -> Option<Vec<String>> {
+        args.get(k).and_then(Value::as_array).map(|arr| {
+            arr.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+    };
+    let opt_kind = || -> Result<Option<NotebookKind>, Fail> {
+        match args.get("kind").and_then(Value::as_str) {
+            Some(k) => Ok(Some(NotebookKind::parse(k).ok_or((
+                "invalid",
+                format!(
+                    "invalid kind '{k}'; expected reflection|photo|food|logistics|expense|idea"
+                ),
+            ))?)),
+            None => Ok(None),
+        }
+    };
+    let opt_day = || -> Option<u32> {
+        args.get("day_index")
+            .and_then(Value::as_u64)
+            .and_then(|n| u32::try_from(n).ok())
+    };
+
+    match op {
+        "add" => {
+            let req = NewNotebookEntry {
+                trip_id: opt_text("trip_id"),
+                cartridge_id: opt_text("cartridge_id"),
+                country_code: opt_text("country_code"),
+                waypoint_id: opt_text("waypoint_id"),
+                kind: opt_kind()?.unwrap_or(NotebookKind::Reflection),
+                day_index: opt_day(),
+                title: opt_str(args, "title", "").to_string(),
+                body: str_arg(args, "body")?.to_string(),
+                sensory_notes: opt_str(args, "sensory_notes", "").to_string(),
+                photo_uris: opt_str_vec("photo_uris").unwrap_or_default(),
+                lat: args.get("lat").and_then(Value::as_f64),
+                lon: args.get("lon").and_then(Value::as_f64),
+                tags: opt_str_vec("tags").unwrap_or_default(),
+            };
+            to_json(&engine.notebook_add(&req).map_err(engine_err)?)
+        }
+        "get" => to_json(
+            &engine
+                .notebook_get(str_arg(args, "entry_id")?)
+                .map_err(engine_err)?,
+        ),
+        "update" => {
+            let id = str_arg(args, "entry_id")?;
+            let patch = NotebookPatch {
+                trip_id: opt_text("trip_id"),
+                cartridge_id: opt_text("cartridge_id"),
+                country_code: opt_text("country_code"),
+                waypoint_id: opt_text("waypoint_id"),
+                kind: opt_kind()?,
+                day_index: opt_day(),
+                title: opt_text("title"),
+                body: opt_text("body"),
+                sensory_notes: opt_text("sensory_notes"),
+                photo_uris: opt_str_vec("photo_uris"),
+                lat: args.get("lat").and_then(Value::as_f64),
+                lon: args.get("lon").and_then(Value::as_f64),
+                tags: opt_str_vec("tags"),
+            };
+            to_json(&engine.notebook_update(id, &patch).map_err(engine_err)?)
+        }
+        "delete" => {
+            let id = str_arg(args, "entry_id")?;
+            engine.notebook_delete(id).map_err(engine_err)?;
+            Ok(json!({ "success": true, "entry_id": id }))
+        }
+        "query" => {
+            let q = NotebookQuery {
+                trip_id: opt_text("trip_id"),
+                cartridge_id: opt_text("cartridge_id"),
+                country_code: opt_text("country_code"),
+                waypoint_id: opt_text("waypoint_id"),
+                kind: opt_kind()?,
+                tag: opt_text("tag"),
+                search: opt_text("search"),
+                limit: args
+                    .get("limit")
+                    .and_then(Value::as_u64)
+                    .and_then(|n| usize::try_from(n).ok()),
+            };
+            to_json(&engine.notebook_query(&q).map_err(engine_err)?)
+        }
+        other => Err(("invalid", format!("unknown notebook operation: {other}"))),
     }
 }
 

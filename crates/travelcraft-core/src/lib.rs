@@ -3,11 +3,17 @@
 //! Integrates Baedeker 2030 chrono-cartography, offline vector tiles,
 //! and a durable travel journal (SQLite, WAL, synchronous=FULL).
 
+pub mod cartridges;
+pub mod cities;
 pub mod fleet;
 pub mod i18n;
+pub mod kanban;
+pub mod lens;
 pub mod llm;
 pub mod nearby;
+pub mod notebook;
 pub mod skills;
+pub mod translate;
 
 use giscraft_core::geo::{haversine_m, LonLat};
 use giscraft_core::geocode::{offline_search, Hit};
@@ -98,7 +104,7 @@ const MAX_FIELD_CHARS: usize = 4_096;
 const MAX_PHOTOS: usize = 32;
 const CHAT_KEEP: i64 = 1_000;
 
-fn db_err<E: std::fmt::Display>(e: E) -> TravelCraftError {
+pub(crate) fn db_err<E: std::fmt::Display>(e: E) -> TravelCraftError {
     TravelCraftError::Store(e.to_string())
 }
 
@@ -163,7 +169,7 @@ impl TravelCraftEngine {
         Ok(engine)
     }
 
-    fn lock(&self) -> MutexGuard<'_, Connection> {
+    pub(crate) fn lock(&self) -> MutexGuard<'_, Connection> {
         self.conn.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
@@ -211,7 +217,61 @@ impl TravelCraftEngine {
                 country_code TEXT NOT NULL,
                 version TEXT NOT NULL,
                 payload TEXT NOT NULL
-            );",
+            );
+            CREATE TABLE IF NOT EXISTS kanban_cards (
+                card_id TEXT PRIMARY KEY,
+                column_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                city TEXT NOT NULL,
+                note TEXT NOT NULL,
+                lat REAL,
+                lon REAL,
+                sort_key INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS cartridges (
+                cartridge_id TEXT PRIMARY KEY,
+                kind TEXT NOT NULL,
+                parent_id TEXT,
+                country_code TEXT NOT NULL,
+                title TEXT NOT NULL,
+                version TEXT NOT NULL,
+                updated_at INTEGER NOT NULL,
+                payload TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_cartridges_parent ON cartridges(parent_id);
+            CREATE INDEX IF NOT EXISTS idx_cartridges_country ON cartridges(country_code);
+            CREATE TABLE IF NOT EXISTS trips (
+                trip_id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                start_date TEXT,
+                end_date TEXT,
+                cartridge_ids_json TEXT NOT NULL,
+                status TEXT NOT NULL,
+                notes TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS notebook_entries (
+                entry_id TEXT PRIMARY KEY,
+                trip_id TEXT,
+                cartridge_id TEXT,
+                country_code TEXT,
+                waypoint_id TEXT,
+                kind TEXT NOT NULL,
+                day_index INTEGER,
+                timestamp_epoch INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                body TEXT NOT NULL,
+                sensory_notes TEXT NOT NULL,
+                photo_uris_json TEXT NOT NULL,
+                lat REAL,
+                lon REAL,
+                tags_json TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_notebook_trip ON notebook_entries(trip_id);
+            CREATE INDEX IF NOT EXISTS idx_notebook_cartridge ON notebook_entries(cartridge_id);
+            CREATE INDEX IF NOT EXISTS idx_notebook_country ON notebook_entries(country_code);",
         )
         .map_err(db_err)?;
         // Migration for older DBs without GPS columns; a duplicate-column error is expected.
@@ -495,7 +555,12 @@ impl TravelCraftEngine {
         format!("{prefix}-{}-{n:03}", chrono::Utc::now().timestamp_millis())
     }
 
-    fn check_text(name: &str, s: &str, max: usize, required: bool) -> Result<(), TravelCraftError> {
+    pub(crate) fn check_text(
+        name: &str,
+        s: &str,
+        max: usize,
+        required: bool,
+    ) -> Result<(), TravelCraftError> {
         if required && s.trim().is_empty() {
             return Err(TravelCraftError::Invalid(format!("{name} is empty")));
         }

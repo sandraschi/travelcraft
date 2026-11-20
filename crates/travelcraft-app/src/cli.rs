@@ -114,6 +114,64 @@ enum Commands {
         #[arg(long, default_value = "http://127.0.0.1:11027")]
         hub_url: String,
     },
+    /// Country & City Cartridges: list, seed-all, show, tile-plan
+    Cartridge {
+        /// list | seed-all | show | tile-plan
+        action: String,
+        /// Cartridge id (e.g. it-venice, jp-kyoto, gb-london, fr-paris, at-salzburg)
+        id: Option<String>,
+        #[arg(long, default_value_t = 12)]
+        min_zoom: u8,
+        #[arg(long, default_value_t = 15)]
+        max_zoom: u8,
+    },
+    /// Universal Notebook Trips: list, create, export
+    Trip {
+        /// list | create | export
+        action: String,
+        /// Trip id or title
+        value: Option<String>,
+    },
+    /// Universal Notebook entries: add, query
+    Notebook {
+        /// add | query
+        action: String,
+        #[arg(long)]
+        trip_id: Option<String>,
+        #[arg(long)]
+        cartridge_id: Option<String>,
+        #[arg(long)]
+        country: Option<String>,
+        #[arg(long)]
+        title: Option<String>,
+        #[arg(long)]
+        body: Option<String>,
+        #[arg(long)]
+        search: Option<String>,
+    },
+    /// LensCraft real-photo identification via local Ollama vision
+    Lens {
+        /// status | identify
+        action: String,
+        photo_path: Option<String>,
+        #[arg(long)]
+        cartridge_id: Option<String>,
+        #[arg(long)]
+        place: Option<String>,
+        #[arg(long)]
+        log_trip_id: Option<String>,
+    },
+    /// Offline cartridge phrasebook & companion Ollama translation
+    Translate {
+        /// phrases | text
+        action: String,
+        /// Cartridge id (for phrases) or text to translate (for text)
+        input: String,
+        #[arg(long, default_value = "Italian")]
+        to: String,
+        #[arg(long)]
+        cartridge_id: Option<String>,
+    },
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -283,6 +341,167 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             let _ = ctx;
         }
+        Commands::Cartridge {
+            action,
+            id,
+            min_zoom,
+            max_zoom,
+        } => match action.as_str() {
+            "list" => {
+                let list = engine
+                    .cartridge_list(&travelcraft_core::cartridges::CartridgeFilter::default())?;
+                println!("{}", serde_json::to_string_pretty(&list)?);
+            }
+            "seed-all" => {
+                let list = engine.cartridge_seed_all()?;
+                println!("{}", serde_json::to_string_pretty(&list)?);
+            }
+            "show" => {
+                let cid = id.ok_or("missing cartridge id")?;
+                let resolved = engine.cartridge_resolve(&cid)?;
+                println!("{}", serde_json::to_string_pretty(&resolved)?);
+            }
+            "tile-plan" => {
+                let cid = id.ok_or("missing cartridge id")?;
+                let plan = engine.cartridge_tile_plan(&cid, min_zoom, max_zoom)?;
+                println!("{}", serde_json::to_string_pretty(&plan)?);
+            }
+            other => {
+                eprintln!(
+                    "unknown cartridge action '{other}'; expected list|seed-all|show|tile-plan"
+                );
+                std::process::exit(1);
+            }
+        },
+        Commands::Trip { action, value } => match action.as_str() {
+            "list" => println!("{}", serde_json::to_string_pretty(&engine.trip_list()?)?),
+            "create" => {
+                let title = value.ok_or("missing trip title")?;
+                let trip = engine.trip_create(&travelcraft_core::notebook::NewTrip {
+                    trip_id: None,
+                    title,
+                    start_date: None,
+                    end_date: None,
+                    cartridge_ids: Vec::new(),
+                    status: travelcraft_core::notebook::TripStatus::Active,
+                    notes: String::new(),
+                })?;
+                println!("{}", serde_json::to_string_pretty(&trip)?);
+            }
+            "export" => {
+                let tid = value.ok_or("missing trip_id")?;
+                println!("{}", engine.trip_export_markdown(&tid)?);
+            }
+            other => {
+                eprintln!("unknown trip action '{other}'; expected list|create|export");
+                std::process::exit(1);
+            }
+        },
+        Commands::Notebook {
+            action,
+            trip_id,
+            cartridge_id,
+            country,
+            title,
+            body,
+            search,
+        } => match action.as_str() {
+            "add" => {
+                let req = travelcraft_core::notebook::NewNotebookEntry {
+                    trip_id,
+                    cartridge_id,
+                    country_code: country,
+                    waypoint_id: None,
+                    kind: travelcraft_core::notebook::NotebookKind::Reflection,
+                    day_index: None,
+                    title: title.unwrap_or_default(),
+                    body: body.ok_or("missing --body")?,
+                    sensory_notes: String::new(),
+                    photo_uris: Vec::new(),
+                    lat: None,
+                    lon: None,
+                    tags: Vec::new(),
+                };
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&engine.notebook_add(&req)?)?
+                );
+            }
+            "query" => {
+                let q = travelcraft_core::notebook::NotebookQuery {
+                    trip_id,
+                    cartridge_id,
+                    country_code: country,
+                    search,
+                    ..travelcraft_core::notebook::NotebookQuery::default()
+                };
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&engine.notebook_query(&q)?)?
+                );
+            }
+            other => {
+                eprintln!("unknown notebook action '{other}'; expected add|query");
+                std::process::exit(1);
+            }
+        },
+        Commands::Lens {
+            action,
+            photo_path,
+            cartridge_id,
+            place,
+            log_trip_id,
+        } => match action.as_str() {
+            "status" => println!(
+                "{}",
+                serde_json::to_string_pretty(&engine.lens_status(None)?)?
+            ),
+            "identify" => {
+                let req = travelcraft_core::lens::LensIdentifyRequest {
+                    photo_path: photo_path.ok_or("missing photo_path")?,
+                    cartridge_id,
+                    place,
+                    log_trip_id,
+                    ..travelcraft_core::lens::LensIdentifyRequest::default()
+                };
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&engine.lens_identify(&req)?)?
+                );
+            }
+            other => {
+                eprintln!("unknown lens action '{other}'; expected status|identify");
+                std::process::exit(1);
+            }
+        },
+        Commands::Translate {
+            action,
+            input,
+            to,
+            cartridge_id,
+        } => match action.as_str() {
+            "phrases" => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&engine.translate_phrases(&input, None)?)?
+                );
+            }
+            "text" => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&engine.translate_text(
+                        &input,
+                        &to,
+                        cartridge_id.as_deref(),
+                        None
+                    )?)?
+                );
+            }
+            other => {
+                eprintln!("unknown translate action '{other}'; expected phrases|text");
+                std::process::exit(1);
+            }
+        },
     }
     Ok(())
 }
