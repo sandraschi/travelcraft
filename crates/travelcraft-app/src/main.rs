@@ -1,4 +1,6 @@
 mod chat_dock;
+mod city_map;
+mod kanban_view;
 mod settings_view;
 
 use clap::Parser;
@@ -32,6 +34,8 @@ pub enum ActiveDialog {
 
 #[derive(Debug, PartialEq, Eq)]
 enum ActiveViewTab {
+    CityMap,
+    Kanban,
     ChronoMap,
     WaypointDetail,
     SensoryAtmosphere,
@@ -116,6 +120,8 @@ pub struct TravelCraftApp {
     region_pack_json_input: String,
     chat_dock: chat_dock::ChatDockState,
     settings: settings_view::SettingsState,
+    city_canvas: city_map::CityCanvas,
+    kanban_draft: kanban_view::KanbanDraft,
 }
 
 impl TravelCraftApp {
@@ -139,6 +145,12 @@ impl TravelCraftApp {
         let chat_log = Self::load_chat(&engine);
         let journal_log = engine.list_journal(500).unwrap_or_default();
         let itinerary = engine.plan_itinerary("JP", 3).ok();
+        let mut status_msg = persist_note.unwrap_or_else(|| {
+            "Street maps of Vienna and Tokyo are ready. The trip board is under Kanban.".to_string()
+        });
+        if let Err(err) = engine.kanban_seed_cities() {
+            status_msg = format!("{status_msg} Kanban seed failed: {err}");
+        }
 
         Ok(Self {
             engine,
@@ -146,9 +158,8 @@ impl TravelCraftApp {
             selected_waypoint_id: Some("jp_nihonbashi".to_string()),
             selected_info_item_id: None,
             tree_search_query: String::new(),
-            active_tab: ActiveViewTab::ChronoMap,
-            status_msg: persist_note
-                .unwrap_or_else(|| "Baedeker 2030 Chrono-Cartography Ready".to_string()),
+            active_tab: ActiveViewTab::CityMap,
+            status_msg,
             optimized_route: initial_plan,
             map_clng: 139.7745,
             map_clat: 35.6840,
@@ -188,6 +199,8 @@ impl TravelCraftApp {
             region_pack_json_input: String::new(),
             chat_dock: chat_dock::ChatDockState::default(),
             settings: settings_view::SettingsState::default(),
+            city_canvas: city_map::CityCanvas::for_country("JP"),
+            kanban_draft: kanban_view::KanbanDraft::default(),
         })
     }
 
@@ -271,12 +284,35 @@ impl TravelCraftApp {
         self.map_clng = lon;
     }
 
-    /// Fly the chrono map to the selected waypoint (city-scale zoom).
+    /// Open Vienna or Tokyo on the street map. Anywhere else falls back to
+    /// the country sketch, which stays off the main tab row.
+    fn open_on_map(&mut self, lat: f64, lon: f64, label: &str) {
+        if self.city_canvas.show_place(lat, lon) {
+            self.active_tab = ActiveViewTab::CityMap;
+            self.status_msg = format!("Map: {label} ({lat:.4}, {lon:.4})");
+        } else {
+            self.center_map_on(lat, lon, 3.5);
+            self.active_tab = ActiveViewTab::ChronoMap;
+            self.status_msg =
+                format!("{label} is outside Vienna and Tokyo. Country sketch is open.");
+        }
+    }
+
+    fn reset_active_map(&mut self) {
+        if self.active_tab == ActiveViewTab::ChronoMap {
+            self.map_zoom = 1.0;
+            self.map_pan = egui::Vec2::ZERO;
+        } else {
+            self.city_canvas.go_home();
+        }
+        self.status_msg = "Reset map view".to_string();
+    }
+
+    /// Fly the map to the selected waypoint.
     pub fn focus_selected(&mut self) {
         if let Some(w) = self.current_waypoint() {
-            self.center_map_on(w.lat, w.lon, 3.5);
-            self.active_tab = ActiveViewTab::ChronoMap;
-            self.status_msg = format!("Focused map on {} ({:.4}, {:.4})", w.name, w.lat, w.lon);
+            let name = w.name.clone();
+            self.open_on_map(w.lat, w.lon, &name);
         }
     }
 
@@ -609,7 +645,7 @@ impl TravelCraftApp {
                             type PaletteEntry = (&'static str, &'static str, PaletteAction);
 
                             let q = self.command_palette_query.to_lowercase();
-                            let commands: [PaletteEntry; 27] = [
+                            let commands: [PaletteEntry; 29] = [
                                 (
                                     "File: New Itinerary (Ctrl+N)",
                                     "Create fresh 3-day itinerary and optimize route",
@@ -647,6 +683,7 @@ impl TravelCraftApp {
                                     Box::new(|app| {
                                         app.selected_country_code = "JP".into();
                                         app.selected_waypoint_id = Some("jp_nihonbashi".into());
+                                        app.city_canvas.set_city(travelcraft_core::cities::TravelCity::Tokyo);
                                         app.optimized_route =
                                             app.engine.plan_optimized_route("JP").ok();
                                         app.refresh_itinerary();
@@ -659,6 +696,7 @@ impl TravelCraftApp {
                                     Box::new(|app| {
                                         app.selected_country_code = "AT".into();
                                         app.selected_waypoint_id = Some("at_stephansdom".into());
+                                        app.city_canvas.set_city(travelcraft_core::cities::TravelCity::Vienna);
                                         app.optimized_route =
                                             app.engine.plan_optimized_route("AT").ok();
                                         app.refresh_itinerary();
@@ -666,8 +704,22 @@ impl TravelCraftApp {
                                     }),
                                 ),
                                 (
-                                    "View: Chrono-Cartographic Map",
-                                    "Interactive WGS84 Mercator projection canvas",
+                                    "View: Vienna and Tokyo maps",
+                                    "OpenStreetMap street maps of the two cities",
+                                    Box::new(|app| {
+                                        app.active_tab = ActiveViewTab::CityMap;
+                                    }),
+                                ),
+                                (
+                                    "View: Trip kanban",
+                                    "Backlog, this trip, booked, done",
+                                    Box::new(|app| {
+                                        app.active_tab = ActiveViewTab::Kanban;
+                                    }),
+                                ),
+                                (
+                                    "View: Country sketch (chrono map)",
+                                    "Old country-scale chrono sketch, kept out of the main row",
                                     Box::new(|app| {
                                         app.active_tab = ActiveViewTab::ChronoMap;
                                     }),
@@ -725,9 +777,7 @@ impl TravelCraftApp {
                                     "View: Center & Reset Map Viewport",
                                     "Reset map zoom and pan back to origin",
                                     Box::new(|app| {
-                                        app.map_zoom = 1.0;
-                                        app.map_pan = egui::Vec2::ZERO;
-                                        app.status_msg = "Reset map viewport".into();
+                                        app.reset_active_map();
                                     }),
                                 ),
                                 (
@@ -1396,8 +1446,12 @@ impl eframe::App for TravelCraftApp {
 
                 // Menu 3: View
                 ui.menu_button("View", |ui| {
-                    if ui.button("Map Canvas / Viewport").clicked() {
-                        self.active_tab = ActiveViewTab::ChronoMap;
+                    if ui.button("Vienna / Tokyo maps").clicked() {
+                        self.active_tab = ActiveViewTab::CityMap;
+                        ui.close();
+                    }
+                    if ui.button("Trip kanban").clicked() {
+                        self.active_tab = ActiveViewTab::Kanban;
                         ui.close();
                     }
                     if ui.button("Chrono-Waypoint Timeline").clicked() {
@@ -1438,9 +1492,12 @@ impl eframe::App for TravelCraftApp {
                         ui.close();
                     }
                     if ui.button("Center & Reset Map Viewport").clicked() {
-                        self.map_zoom = 1.0;
-                        self.map_pan = egui::Vec2::ZERO;
-                        self.status_msg = "Centered map viewport".to_string();
+                        self.reset_active_map();
+                        ui.close();
+                    }
+                    ui.separator();
+                    if ui.button("Country sketch (chrono map)").clicked() {
+                        self.active_tab = ActiveViewTab::ChronoMap;
                         ui.close();
                     }
                     ui.separator();
@@ -1534,13 +1591,18 @@ impl eframe::App for TravelCraftApp {
                 // Menu 7: Window
                 ui.menu_button("Window", |ui| {
                     if ui.button("Reset Layout").clicked() {
-                        self.active_tab = ActiveViewTab::ChronoMap;
-                        self.status_msg = "Reset workstation layout to default".to_string();
+                        self.active_tab = ActiveViewTab::CityMap;
+                        self.city_canvas.go_home();
+                        self.status_msg = "Reset workstation layout to the city map".to_string();
                         ui.close();
                     }
                     ui.separator();
                     if ui.button("Map Viewport").clicked() {
-                        self.active_tab = ActiveViewTab::ChronoMap;
+                        self.active_tab = ActiveViewTab::CityMap;
+                        ui.close();
+                    }
+                    if ui.button("Trip kanban").clicked() {
+                        self.active_tab = ActiveViewTab::Kanban;
                         ui.close();
                     }
                     if ui.button("Sights Inspector").clicked() {
@@ -1613,6 +1675,7 @@ impl eframe::App for TravelCraftApp {
                         if ui.button("🇯🇵 JapanCraft (Edo to Neo-Tokyo)").clicked() {
                             self.selected_country_code = "JP".to_string();
                             self.selected_waypoint_id = Some("jp_nihonbashi".to_string());
+                            self.city_canvas.set_city(travelcraft_core::cities::TravelCity::Tokyo);
                             self.optimized_route = self.engine.plan_optimized_route("JP").ok();
                             self.refresh_itinerary();
                             self.status_msg = "Loaded JapanCraft Edition".to_string();
@@ -1621,6 +1684,7 @@ impl eframe::App for TravelCraftApp {
                         if ui.button("🇦🇹 AustriaCraft (Habsburg to Alpine)").clicked() {
                             self.selected_country_code = "AT".to_string();
                             self.selected_waypoint_id = Some("at_stephansdom".to_string());
+                            self.city_canvas.set_city(travelcraft_core::cities::TravelCity::Vienna);
                             self.optimized_route = self.engine.plan_optimized_route("AT").ok();
                             self.refresh_itinerary();
                             self.status_msg = "Loaded AustriaCraft Edition".to_string();
@@ -1645,11 +1709,19 @@ impl eframe::App for TravelCraftApp {
             ui.horizontal_wrapped(|ui| {
                 ui.heading("TravelCraft - Baedeker 2030 Studio");
                 ui.separator();
+                if ui
+                    .selectable_label(self.active_tab == ActiveViewTab::CityMap, "Maps")
+                    .clicked()
+                {
+                    self.active_tab = ActiveViewTab::CityMap;
+                }
+                if ui
+                    .selectable_label(self.active_tab == ActiveViewTab::Kanban, "Kanban")
+                    .clicked()
+                {
+                    self.active_tab = ActiveViewTab::Kanban;
+                }
                 for (tab, key) in [
-                    (
-                        ActiveViewTab::ChronoMap,
-                        travelcraft_core::i18n::I18nKey::TabChronoMap,
-                    ),
                     (
                         ActiveViewTab::WaypointDetail,
                         travelcraft_core::i18n::I18nKey::TabWaypointDetail,
@@ -1985,6 +2057,24 @@ impl eframe::App for TravelCraftApp {
         // CENTRAL PANEL
         egui::CentralPanel::default().show(ui, |ui| {
             match self.active_tab {
+                ActiveViewTab::CityMap => {
+                    if let Some(pick) = city_map::show(ui, &mut self.city_canvas) {
+                        if pick.id.starts_with("at_") {
+                            self.selected_country_code = "AT".to_string();
+                            self.selected_waypoint_id = Some(pick.id.clone());
+                        } else if pick.id.starts_with("jp_") {
+                            self.selected_country_code = "JP".to_string();
+                            self.selected_waypoint_id = Some(pick.id.clone());
+                        }
+                        self.status_msg = format!("Map: {} ({:.4}, {:.4})", pick.name, pick.lat, pick.lon);
+                    }
+                }
+                ActiveViewTab::Kanban => {
+                    if let Some(jump) = kanban_view::show(ui, &self.engine, &mut self.kanban_draft)
+                    {
+                        self.open_on_map(jump.lat, jump.lon, &jump.label);
+                    }
+                }
                 ActiveViewTab::ChronoMap => {
                     big_heading(ui, "Chrono-Cartographic Interactive Map (WGS84 Mercator)");
                     body_text(
@@ -2651,11 +2741,8 @@ impl eframe::App for TravelCraftApp {
                                                 .size(14.0)
                                                 .color(ROSE),
                                             );
-                                            if ui.button("📍 Show on Chrono-Map").clicked() {
-                                                self.center_map_on(lat, lon, 3.8);
-                                                self.active_tab = ActiveViewTab::ChronoMap;
-                                                self.status_msg =
-                                                    format!("Viewing {} on map (GPS: {:.4}, {:.4})", item.title, lat, lon);
+                                            if ui.button("Show on map").clicked() {
+                                                self.open_on_map(lat, lon, &item.title);
                                             }
                                         });
                                     }
@@ -2692,7 +2779,7 @@ impl eframe::App for TravelCraftApp {
                                     .color(MIST),
                                 );
                                 ui.horizontal(|ui| {
-                                    if ui.button("📍 Focus on Chrono-Map").clicked() {
+                                    if ui.button("Show on map").clicked() {
                                         self.focus_selected();
                                     }
                                 });
@@ -3412,8 +3499,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         engine.import_region_pack(&sample_pack)?;
         let loaded_packs = engine.list_region_packs()?;
+        let kanban_seeded = engine.kanban_seed_cities()?;
+        let kanban_cards = engine.kanban_list()?.len();
+        let vienna_places =
+            travelcraft_core::cities::places_in_city(travelcraft_core::cities::TravelCity::Vienna)
+                .len();
+        let tokyo_places =
+            travelcraft_core::cities::places_in_city(travelcraft_core::cities::TravelCity::Tokyo)
+                .len();
 
-        let smoke_payload = json!({
+        let mut smoke_payload = json!({
             "app": "travelcraft",
             "version": "0.2.0",
             "status": "ready",
@@ -3446,6 +3541,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "qgis_map_tiles_zoom8": plan.covered_map_tiles_zoom10,
             "capabilities": ["ChronoCartography", "SensoryAtmosphere", "EdoToModern", "HabsburgToAlpine", "InteractiveJournal", "QgisGisIntegration", "StayItineraries", "SightLensIdentify", "SightChat", "DynamicRegionPacks", "CraftMenuBarStandard"]
         });
+        smoke_payload["has_city_maps"] = json!(true);
+        smoke_payload["has_kanban"] = json!(true);
+        smoke_payload["kanban_seeded"] = json!(kanban_seeded);
+        smoke_payload["kanban_cards"] = json!(kanban_cards);
+        smoke_payload["vienna_places"] = json!(vienna_places);
+        smoke_payload["tokyo_places"] = json!(tokyo_places);
+        if let Some(caps) = smoke_payload
+            .get_mut("capabilities")
+            .and_then(|v| v.as_array_mut())
+        {
+            caps.insert(0, json!("TripKanban"));
+            caps.insert(0, json!("CityMaps"));
+        }
         println!("[travelcraft] Smoke OK: {}", smoke_payload);
         return Ok(());
     }
