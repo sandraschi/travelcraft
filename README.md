@@ -28,7 +28,7 @@ TravelCraft (Baedeker 2030) is a local-first chrono-cartography studio and offli
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install-craft.ps1
 ```
 
-Installs the Windows app, `travelcraft-cli`, and the MCP bundle.
+Installs the Windows app and the CLI (Start Menu shortcut, CLI on the user PATH). `-RegisterClients` also registers the MCP exe with the IDEs that are installed. `-Clients cursor,claude-desktop` limits that list. `-Mcpb` installs the Claude Desktop extension bundle.
 
 ## Example Prompts
 
