@@ -535,6 +535,15 @@ fn seed_all_installs_all_five_countries_and_five_cities() -> Result<(), Box<dyn 
     let seeded = engine.cartridge_seed_all()?;
     assert_eq!(seeded.len(), 10);
 
+    for country_id in ["it", "jp", "at", "gb", "fr"] {
+        let co = engine.cartridge_get(country_id)?;
+        assert!(
+            !co.waypoints.is_empty(),
+            "{country_id} country missing waypoints"
+        );
+        assert!(!co.events.is_empty(), "{country_id} country missing events");
+    }
+
     for (city_id, expected_currency, expected_parent) in [
         ("it-venice", "EUR", "it"),
         ("jp-kyoto", "JPY", "jp"),

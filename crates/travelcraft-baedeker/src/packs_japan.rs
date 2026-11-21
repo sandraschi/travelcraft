@@ -19,6 +19,11 @@ use crate::{
 pub fn japan_country_cartridge() -> Cartridge {
     let edition = BaedekerCatalog::get_japan_craft();
     let tree = BaedekerCatalog::get_knowledge_tree("JP");
+    let national_waypoints: Vec<ChronoWaypoint> = edition
+        .curated_routes
+        .iter()
+        .flat_map(|r| r.waypoints.iter().cloned())
+        .collect();
     Cartridge {
         id: "jp".to_string(),
         kind: CartridgeKind::Country,
@@ -83,9 +88,27 @@ pub fn japan_country_cartridge() -> Cartridge {
                 context: "Pointing at a menu item or bakery counter".to_string(),
             },
         ],
-        waypoints: Vec::new(),
+        waypoints: national_waypoints,
         artworks: Vec::new(),
-        spots: Vec::new(),
+        spots: vec![
+            LocalSpot {
+                id: "spot-jp-ekibenya-matsuri".to_string(),
+                name: "Ekibenya Matsuri (Tokyo Station)".to_string(),
+                category: SpotCategory::Market,
+                tier: Some(PriceTier::Budget),
+                zone_id: "Tokyo".to_string(),
+                address: "Gransta Tokyo (inside JR gates), Tokyo Station".to_string(),
+                lat: Some(35.6812),
+                lon: Some(139.7671),
+                price_band: "JPY".to_string(),
+                booking_note: "Walk-in before boarding Tokaido Shinkansen; opens 05:30.".to_string(),
+                note: "Over 150 regional railway bento boxes from across Japan for your Shinkansen ride to Kyoto.".to_string(),
+                tags: vec!["ekiben".to_string(), "shinkansen".to_string(), "budget".to_string()],
+                photo_uris: Vec::new(),
+                source_urls: vec!["https://www.gransta.jp".to_string()],
+                verified_at: Some("2026-11-20".to_string()),
+            },
+        ],
         transit: TransitSnapshot {
             summary: "Tokaido Shinkansen links Tokyo, Kyoto (2h15m), and Osaka (2h30m) every 5-10 minutes.".to_string(),
             lines: vec![
@@ -121,8 +144,21 @@ pub fn japan_country_cartridge() -> Cartridge {
                 advice: "Carry a small plastic pouch for wrappers; eat street snacks standing beside the stall, not while strolling.".to_string(),
             },
         ],
-        events: Vec::new(),
-        events_refreshed_at: None,
+        events: vec![
+            CurrentEvent {
+                id: "ev-jp-koyo-2026".to_string(),
+                title: "Japan Autumn Foliage (Koyo) Peak Window".to_string(),
+                venue: "Kyoto, Nara, Tokyo & Nikko".to_string(),
+                category: EventCategory::Festival,
+                start_date: Some("2026-11-15".to_string()),
+                end_date: Some("2026-12-06".to_string()),
+                booking_url: "https://www.japan-guide.com/e/e2014.html".to_string(),
+                note: "Late-November peak across Kyoto/Kansai and Tokyo; reserve Shinkansen seats and ryokans well in advance.".to_string(),
+                source_url: "https://www.japan-guide.com/e/e2014.html".to_string(),
+                verified_at: Some("2026-11-20".to_string()),
+            },
+        ],
+        events_refreshed_at: Some("2026-11-20".to_string()),
         media: Vec::new(),
         knowledge_tree: Some(tree),
     }

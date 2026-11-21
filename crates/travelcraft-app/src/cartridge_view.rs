@@ -1,6 +1,6 @@
 //! egui views for Country/City Cartridges, Offline Phrasebook/Translate, and Universal Notebook.
 
-use travelcraft_baedeker::cartridge::{PriceTier, ResolvedCartridge, SpotCategory};
+use travelcraft_baedeker::cartridge::{CartridgeKind, PriceTier, ResolvedCartridge, SpotCategory};
 use travelcraft_core::cartridges::{CartridgeFilter, CartridgeTilePlan};
 use travelcraft_core::notebook::{
     NewNotebookEntry, NewTrip, NotebookKind, NotebookQuery, TripStatus,
@@ -98,7 +98,7 @@ pub fn ui_cartridges_tab(
         .unwrap_or_default();
 
     ui.columns(2, |cols| {
-        // Left column: cartridge roster
+        // Left column: hierarchical Country -> indented City cartridge roster
         cols[0].heading(format!("Installed Cartridges ({})", summaries.len()));
         egui::ScrollArea::vertical()
             .id_salt("cartridge_list_scroll")
@@ -107,28 +107,83 @@ pub fn ui_cartridges_tab(
                 if summaries.is_empty() {
                     ui.label("No cartridges installed yet. Click 'Seed All' above to load Italy/Venice, Japan/Kyoto, Austria/Salzburg, UK/London, and France/Paris.");
                 }
-                for c in &summaries {
-                    let selected = state.selected_cartridge_id == c.id;
+                let countries: Vec<_> = summaries
+                    .iter()
+                    .filter(|c| c.kind == CartridgeKind::Country)
+                    .collect();
+                let cities: Vec<_> = summaries
+                    .iter()
+                    .filter(|c| c.kind == CartridgeKind::City)
+                    .collect();
+
+                for country in &countries {
+                    let child_cities: Vec<_> = cities
+                        .iter()
+                        .filter(|city| city.parent_id.as_deref() == Some(country.id.as_str()))
+                        .collect();
+                    let selected = state.selected_cartridge_id == country.id;
                     let label = format!(
-                        "[{}] {} ({}) - {} stops, {} spots, {} events",
-                        c.kind.as_str(),
-                        c.title,
-                        c.id,
-                        c.waypoint_count,
-                        c.spot_count,
-                        c.event_count
+                        "[COUNTRY] {} ({}) - {} stops, {} events, {} cities",
+                        country.title,
+                        country.id,
+                        country.waypoint_count,
+                        country.event_count,
+                        child_cities.len()
                     );
                     if ui.selectable_label(selected, label).clicked() {
-                        state.selected_cartridge_id = c.id.clone();
+                        state.selected_cartridge_id = country.id.clone();
                         state.tile_plan = None;
                         state.flashcard_text.clear();
-                        match engine.cartridge_resolve(&c.id) {
+                        match engine.cartridge_resolve(&country.id) {
                             Ok(r) => {
                                 state.resolved = Some(r);
-                                state.status = format!("Loaded {}", c.id);
+                                state.status = format!("Loaded {}", country.id);
                             }
-                            Err(e) => state.status = format!("Error loading {}: {e}", c.id),
+                            Err(e) => state.status = format!("Error loading {}: {e}", country.id),
                         }
+                    }
+                    for city in child_cities {
+                        let city_selected = state.selected_cartridge_id == city.id;
+                        let city_label = format!(
+                            "   |_ [CITY] {} ({}) - {} stops, {} spots, {} events",
+                            city.title,
+                            city.id,
+                            city.waypoint_count,
+                            city.spot_count,
+                            city.event_count
+                        );
+                        if ui.selectable_label(city_selected, city_label).clicked() {
+                            state.selected_cartridge_id = city.id.clone();
+                            state.tile_plan = None;
+                            state.flashcard_text.clear();
+                            match engine.cartridge_resolve(&city.id) {
+                                Ok(r) => {
+                                    state.resolved = Some(r);
+                                    state.status = format!("Loaded {}", city.id);
+                                }
+                                Err(e) => state.status = format!("Error loading {}: {e}", city.id),
+                            }
+                        }
+                    }
+                }
+                // Orphan cities (without a matching parent country)
+                for city in &cities {
+                    let has_parent = countries
+                        .iter()
+                        .any(|co| city.parent_id.as_deref() == Some(co.id.as_str()));
+                    if has_parent {
+                        continue;
+                    }
+                    let selected = state.selected_cartridge_id == city.id;
+                    let label = format!(
+                        "[CITY] {} ({}) - {} stops, {} spots, {} events",
+                        city.title, city.id, city.waypoint_count, city.spot_count, city.event_count
+                    );
+                    if ui.selectable_label(selected, label).clicked() {
+                        state.selected_cartridge_id = city.id.clone();
+                        state.tile_plan = None;
+                        state.flashcard_text.clear();
+                        state.resolved = engine.cartridge_resolve(&city.id).ok();
                     }
                 }
             });
@@ -156,6 +211,26 @@ pub fn ui_cartridges_tab(
                     resolved.effective_timezone,
                     resolved.parent_id.as_deref().unwrap_or("none")
                 ));
+                if c.kind == CartridgeKind::Country {
+                    let child_cities: Vec<_> = summaries
+                        .iter()
+                        .filter(|s| s.parent_id.as_deref() == Some(c.id.as_str()))
+                        .collect();
+                    if !child_cities.is_empty() {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.strong("Child cities:");
+                            for child in child_cities {
+                                if ui.button(format!("Open {} ({})", child.title, child.id)).clicked() {
+                                    state.selected_cartridge_id = child.id.clone();
+                                    state.tile_plan = None;
+                                    state.flashcard_text.clear();
+                                    state.resolved = engine.cartridge_resolve(&child.id).ok();
+                                    state.status = format!("Opened {}", child.id);
+                                }
+                            }
+                        });
+                    }
+                }
                 ui.horizontal(|ui| {
                     if ui.button("Plan Offline GISCraft Tiles (Z12-Z15)").clicked() {
                         match engine.cartridge_tile_plan(&c.id, 12, 15) {
@@ -180,6 +255,44 @@ pub fn ui_cartridges_tab(
                     ui.label(format!("Tipping/Cover: {}", sk.tipping_and_cover));
                     ui.label(format!("Transit: {}", sk.transit_basics));
                 });
+
+                if !c.transit.summary.is_empty() || !c.transit.lines.is_empty() {
+                    ui.collapsing("Transit & Rail Snapshot", |ui| {
+                        if !c.transit.summary.is_empty() {
+                            ui.label(&c.transit.summary);
+                        }
+                        for line in &c.transit.lines {
+                            ui.label(format!("* {line}"));
+                        }
+                        for pass in &c.transit.passes {
+                            ui.label(format!("Pass: {pass}"));
+                        }
+                    });
+                }
+
+                if !resolved.effective_gotchas.is_empty() {
+                    ui.collapsing(format!("Practical Gotchas ({})", resolved.effective_gotchas.len()), |ui| {
+                        for g in &resolved.effective_gotchas {
+                            ui.strong(format!("{} [{}]", g.title, g.season));
+                            ui.label(&g.advice);
+                            ui.separator();
+                        }
+                    });
+                }
+
+                if !resolved.effective_knowledge_branches.is_empty() {
+                    ui.collapsing(
+                        format!("Knowledge Tree ({} branches)", resolved.effective_knowledge_branches.len()),
+                        |ui| {
+                            for b in &resolved.effective_knowledge_branches {
+                                ui.strong(&b.title);
+                                for item in &b.items {
+                                    ui.label(format!("* {}: {}", item.title, item.subtitle));
+                                }
+                            }
+                        },
+                    );
+                }
 
                 if !c.events.is_empty() {
                     let refreshed = c.events_refreshed_at.as_deref().unwrap_or("unknown");
