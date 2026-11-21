@@ -1,80 +1,139 @@
-# TravelCraft
+# TravelCraft (Baedeker 2030)
 
-TravelCraft (Baedeker 2030) is a local-first chrono-cartography studio and offline travel guide that pairs historical city layers, itineraries, and a SQLite travel journal with an MCP server for agentic IDEs.
-
-## What You Can Do
-
-- **Explore chrono-cartographic editions**: Browse curated Austria (`AT`, 8 waypoints from Hallstatt 800 BC to Habsburg Vienna) and Japan (`JP`, 9 waypoints from Tokaido 1603 to Neo-Tokyo) guides with sensory atmosphere profiles (acoustic, architectural, olfactory, light).
-- **Plan stay-length itineraries and routes**: Generate 1, 2, 3, 5, 7, or 14-day Baedeker day-plans (`travel_itinerary`) and geodesic Haversine routes (`travel_plan_route`), or organize stops on the **Trip Kanban** board.
-- **Identify landmarks and artworks with SightLens**: Match GPS coordinates and hints offline against landmarks and museum dossiers (Stephansdom, KHM Caravaggio *Rosenkranzmadonna*, Klimt *The Kiss*, Bruegel, Hokusai) and log captures to your journal.
-- **Ask questions in Sight Chat & AI Chat Dock**: Press `Ctrl+J` to open the **AI Chat Dock** for grounded answers (using Ollama `:11434` when reachable or offline extractive fallback), with optional voice output via Windows SAPI or `speech-mcp`.
-- **Use the 10-item Help menu and Bundled Skills**: Open the in-app **Help Center** (`HELP.md`), browse **Bundled Skills** (`skill://travelcraft-advisor/SKILL.md`, `skill://travelcraft-workflow/SKILL.md`), or call **15 MCP tools** from Claude Desktop.
-- **Keep a private offline travel journal**: Save reflections, GPS coordinates, and SightLens captures in a local SQLite WAL database (`%LOCALAPPDATA%\travelcraft\travelcraft.db`), and export standalone HTML dossiers (`Ctrl+E`) or serve a mobile view (`travelcraft-cli serve 14130`).
-- **Query nearby OpenStreetMap POIs and fleet transit**: Look up bicycle repair, drinking water, or toilets via Overpass (`travel_nearby`, cached 24 h) and check Vienna/Japan transit via optional local companions (`gtfs-mcp`, `publictransport-mcp`, `qgiscraft`).
+![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)
+![Rust 1.90+](https://img.shields.io/badge/rust-1.90%2B-orange?logo=rust)
+![MCP stdio](https://img.shields.io/badge/MCP-stdio-purple)
+![ArtCraft harness](https://img.shields.io/badge/ArtCraft-harness-green)
 
 ## Install
 
-1. Download **`travelcraft-0.2.0-setup.exe`** from the [latest release](https://github.com/sandraschi/travelcraft/releases/latest).
-2. Run it. Windows may show a SmartScreen warning because the installer is unsigned: choose **More info > Run anyway**.
-3. Open **TravelCraft** from the Start menu.
-
-**Only want the tools inside Claude?** The `.mcpb` bundle registers the MCP server in Claude Desktop but does **not** install the desktop studio. Paste this to Claude:
-
-> Install the travelcraft MCP extension: download `travelcraft-0.2.0.mcpb` from https://github.com/sandraschi/travelcraft/releases/latest and open it with Claude Desktop.
-
-**From a local checkout (Windows):**
+Tell Cursor, Claude, Antigravity, or OpenCode: **Install this.**
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install-craft.ps1
 ```
 
-Installs the Windows app, `travelcraft-cli`, and the MCP bundle.
+Installs the Windows app and the CLI (Start Menu shortcut, CLI on the user PATH). `-RegisterClients` also registers the MCP exe with the IDEs that are installed. `-Clients cursor,claude-desktop` limits that list. `-Mcpb` installs the Claude Desktop extension bundle.
 
-## Example Prompts
+**TravelCraft** is an ArtCraft-tier chrono-cartography studio and local-first travel guide platform that reinvents the classic 19th-century Baedeker guide for the 2030s.
 
-> "Plan a 3-day Austria itinerary and summarize each stop with its historical era."
+Features:
+- **Chrono-Cartographic Layers**: Tokaido 1603 vs Neo-Tokyo; Hallstatt 800 BC vs Habsburg Vienna 1365.
+- **Sensory Atmosphere Profiles**: Acoustic, architectural, olfactory, light records per waypoint.
+- **Local Storage**: Offline SQLite journal + GPS-tagged photos via `DatabaseCraft`.
+- **Stay-Length Itineraries**: 1/2/3/5/7/14-day Baedeker day-plans per edition (Itineraries tab, `travelcraft-cli itinerary AT 3`).
+- **SightLens Camera**: Point laptop at Stephansdom and click Identify, or load an Immich export. Offline GPS + hint matching (Stephansdom, KHM Caravaggio Rosenkranzmadonna, Klimt Kiss, Bruegel Tower) renders a beautiful dossier and logs it with GPS source.
+- **Sight Chat (text + voice)**: After identifying the Caravaggio, ask anything. Grounded in info blob + qgiscraft map blob + GTFS transit blob; online via Ollama `:11434` when reachable, else OFFLINE BLOB extractive answer. Voice out via Windows SAPI Speak or speech-mcp `:10909` TTS wav.
+- **Maps + Transit**: qgiscraft slippy tiles (`:11254`) plus a preloaded Wiener Linien/JR snapshot. Live schedules via gtfs-mcp `:10913` and Vienna departures via publictransport-mcp `:11170` (`travel_transit`, Transit tab). Companion status also covers japanophile-mcp and vienna-life-assistant.
+- **High-Contrast Map**: Mouse-wheel zoom + drag pan, large type, ink/paper palette.
+- **FastMCP Protocol**: Port `14129`.
 
-> "What am I looking at near 48.2039, 16.3619 with hint `caravaggio`, and how do I get there?"
+Vendored offline sources (see `crates/travelcraft-baedeker/src/lib.rs SOURCES`):
+- `japanophile-mcp/assets/knowledge/japan/travel.html` - JR Pass, konbini, budget, etiquette, regions.
+- `vienna-life-assistant` `vienna_tips` (coffee/music/museum), `restaurants_data` Beisl rule, `culture_data` (KHM, Belvedere, Stephansplatz).
 
-> "Log a journal entry: Cafe Berg, rain, Melange — then show my last 5 journal entries."
+---
 
-> "Find bicycle repair shops near Wien using OpenStreetMap."
+## Who uses this, and why not just open Google Maps
 
-## Three Ways to Use It
+Travelcraft is an offline, agent-native travel primer. The point is not a better map. It is that an agent in your IDE (Claude Desktop, Claude Code, Cursor, Zed, Antigravity, anything that speaks MCP) can plan, explain and keep a journal for a trip without a browser, an account, an API key or a network on the core path.
 
-| Surface | Start With | Best For |
+| Who | Why not Google Maps | Typical prompt | Works today |
+|---|---|---|---|
+| Developer or power user with an agentic IDE | Stays in the tool, scriptable, no account, nothing leaves the machine | "Plan 3 days in Austria and put the stops in a table" | Yes, Austria and Japan only |
+| Traveller with bad signal (tunnels, Tyrol, flights) | Core data is compiled in, no network needed | "What is the story of Stephansdom? I have no signal" | Yes, small catalogue |
+| Culture and history traveller | Places are placed in time (chrono-waypoints), not just on a map | "What am I looking at at 48.2039, 16.3619?" | Yes, a handful of sights |
+| Japan first-timer | Curated primer (JR Pass, konbini, etiquette) instead of ten browser tabs | "Plan a Tokaido route through Japan" | Yes, some text is German |
+| Private journal keeper | Journal is a local SQLite file, survives crashes, never uploaded | "Log: Cafe Berg, rain, Melange, wet wool" | Yes |
+| Builder of craft apps | Small reference for the ArtCraft pattern (engine, CLI, MCP, egui) | read `docs/PRD.md` and `AGENTS.md` | Yes |
+
+### Prompts that work today
+
+| You say | Tool the agent calls | You get |
 |---|---|---|
-| **Desktop Studio** | `travelcraft` | Interactive Vienna/Tokyo maps, Chrono-Map, Trip Kanban, SightLens, and `Ctrl+J` Chat |
-| **Command Line** | `travelcraft-cli --help` | Headless itineraries, route planning, SightLens capture, and mobile dossier serving |
-| **MCP Server** | `travelcraft-mcp` | Calling 15 travel tools and 2 bundled skills from Claude Desktop or your IDE |
+| "Which country editions are there?" | `travel_countries` | Austria and Japan editions |
+| "Plan 3 days in Austria" | `travel_itinerary` (AT, 3) | Day-by-day plan (1, 2, 3, 5, 7 or 14 days) |
+| "Best route through Japan, oldest sight first" | `travel_plan_route` (JP) | Chrono-ordered legs, distance, hours, carbon estimate |
+| "What am I looking at near Stephansplatz?" | `travel_identify_sight` | Sight dossier from the offline catalogue |
+| "How do I get to the Caravaggio in the KHM?" | `travel_sight_chat` | Grounded answer plus map and the offline transit snapshot |
+| "Next trams at Stephansplatz" | `travel_transit` (`live`) | Live Vienna departures from publictransport-mcp when it is running, otherwise the offline blob |
+| "Which fleet transit servers are up?" | `travel_transit` (`status`) | Up or down for gtfs, publictransport, japanophile, vienna-life, speech, giscraft |
+| "I photographed the Klimt Kiss, log it" | `travel_sightlens_capture` | Identification plus a durable journal entry |
+| "Log: Cafe Berg, rain, Melange" | `travel_journal_add` | Saved entry id |
+| "Show my last 10 journal entries" | `travel_journal_list` | Entries, newest first |
+| "Coordinates for Wien" | `travel_geocode` | Demo geocoder hit (a handful of places only) |
+| "Vienna bicycle repair shops" | `travel_nearby` (bicycle_repair, Wien) | Nearest shops and repair stations from OpenStreetMap with address, phone, raw opening hours, OSM link. **Online**, cached 24 h |
+| "Public toilets or drinking water near me" | `travel_nearby` (toilets, drinking_water, lat/lon) | Same, from OSM |
+| "Which of these lack opening hours in OSM?" | `travel_nearby` `missing_tags` plus `osm_edit_url` | A to-do list for a mapper; travelcraft itself never edits OSM |
 
-## Keyboard Shortcuts (Desktop Studio)
+### Not built yet (do not expect these)
 
-| Shortcut | Action |
-|---|---|
-| `Ctrl+J` | Toggle the **AI Chat Dock** |
-| `Ctrl+S` | Save current reflection to the Travel Journal |
-| `Ctrl+E` | Export a standalone Baedeker HTML dossier |
+| You say | Why it does not work today | What it would take |
+|---|---|---|
+| "Is it open now?", prices, booking | `travel_nearby` returns the raw `opening_hours` tag but nothing evaluates it, and there is no price or booking data | An opening-hours evaluator; booking is out of scope |
+| "Another country" | Only Austria and Japan editions exist | New editions in `travelcraft-baedeker` |
+| "Which painting is in this photo?" | Identification uses GPS plus a hint, not the image | An image model; not planned |
+| Contributing back to OpenStreetMap | Travelcraft reads OSM tiles, it does not edit OSM | A mapper workflow belongs in giscraft, not here |
 
-## Scope & Honest Limits
+Network use on the MCP server is `travel_nearby` (public Overpass) and `travel_transit` (localhost companions only). Overpass data comes from public instances that are sometimes slow or down; travelcraft tries several mirrors, caches answers for 24 h and says so when it falls back to an old answer. Coverage and opening hours are only as good as OpenStreetMap. Transit answers are only as live as gtfs-mcp and publictransport-mcp on this machine.
 
-Core editions (`AT` and `JP`), SightLens matching, and the SQLite journal work completely offline. `travel_nearby` uses public OpenStreetMap Overpass mirrors (24 h cache) and returns raw `opening_hours` tags without evaluating whether a place is open right now. SightLens identifies sights from GPS plus a text hint rather than image recognition.
+Journal, chat history and settings live in `%LOCALAPPDATA%\travelcraft\travelcraft.db` (override with `TRAVELCRAFT_DATA`).
+## Workspace Structure
 
-## Documentation
+1. `crates/travelcraft-baedeker`: Editions (`JapanCraft` 9 stops, `AustriaCraft` 8 stops), stay itineraries, SightLens identify DB (landmarks + KHM/Belvedere artworks).
+2. `crates/travelcraft-core`: Geodesic routing, itineraries, SightLens pipeline, durable SQLite journal (GPS columns), chat history and settings.
+3. `crates/travelcraft-mcp`: MCP 2024-11-05 stdio server (14 tools, see `docs/TOOLS.md`). No port; hosts start the exe.
+4. `crates/travelcraft-app`: Native GUI (`eframe`/`egui`) + CLI (`travelcraft-cli`).
 
-| Document | Contents |
-|---|---|
-| [HELP.md](HELP.md) | Complete user guide, shortcuts (`Ctrl+J`, `Ctrl+E`, `Ctrl+S`), and SightLens notes |
-| [docs/TOOLS.md](docs/TOOLS.md) | Reference for all 15 MCP tools and bundled skill URIs |
-| [docs/PRD.md](docs/PRD.md) | Product requirements, crate layout, and `qgiscraft` boundary |
-| [docs/TIERED_PLAN.md](docs/TIERED_PLAN.md) | Feature roadmap and tier checklist |
-| [docs/CARTRIDGE_AND_NOTEBOOK_SPEC.md](docs/CARTRIDGE_AND_NOTEBOOK_SPEC.md) | Edition cartridge and notebook specification |
+---
 
-## Requirements
+## Verification & Usage
 
-- **OS**: Windows 10/11 (x64) for the installer; Linux/macOS supported from source
-- **Optional companions**: Ollama (`:11434`) for generative Sight Chat; `qgiscraft`, `gtfs-mcp`, `publictransport-mcp`, `speech-mcp` for live tiles, schedules, and TTS
+```powershell
+# Run test suite
+cargo test --workspace
 
-## License
+# Headless smoke test (JP route + AT itinerary + Stephansdom + Caravaggio)
+./target/debug/travelcraft.exe --smoke
 
-MIT or Apache-2.0, at your option.
+# CLI
+./target/debug/travelcraft-cli.exe plan JP
+./target/debug/travelcraft-cli.exe itinerary AT 3
+./target/debug/travelcraft-cli.exe identify 48.2085 16.3738 stephansdom
+./target/debug/travelcraft-cli.exe identify 48.2039 16.3619 caravaggio
+./target/debug/travelcraft-cli.exe capture immich-export.jpg --gps-source immich-exif --lat 48.2085 --lon 16.3738 --hint stephansdom
+./target/debug/travelcraft-cli.exe chat --about caravaggio --question "Who painted the Rosenkranzmadonna and where is it?"
+```
+
+### Sight Chat notes
+
+- **Text**: Sight Chat tab, context pill shows current sight. Ask anything about the dossier; history (last 6) kept for follow-ups.
+- **Online LLM**: Ollama `http://127.0.0.1:11434/api/chat` (model field, default `qwen2.5:7b`). System prompt = info blob + map + transit + sources. If unreachable, OFFLINE BLOB extractive answer is returned and labeled.
+- **Voice out**: `Speak last answer` = Windows SAPI offline; `Save last answer (speech-mcp wav)` = POST `:10909/api/v1/tts` to temp wav.
+- **Voice in**: type/paste transcript (mic path: speech-mcp `:10909` web UI + FunASR sidecar `:10914`; record wav then paste transcript here in v1).
+- **Maps**: every prompt carries `MAP qgiscraft Z16 tile + OSM URL + scale + Z8 bbox count` (offline math, live tiles via qgiscraft `:11254`).
+- **Transit**: preloaded blob per sight (Stephansdom U1/U3, KHM D/1/2/71 + U3, Belvedere D/71, Schoenbrunn U4, JP JR/IC hubs). Live data is the Transit tab and `travelcraft-cli transit`: gtfs-mcp `:10913` for stop search and timetables, publictransport-mcp `:11170` for Vienna departures and disruptions.
+
+### SightLens GPS notes
+
+- **Windows location**: Settings > Privacy > Location ON; browser/OS prompt once.
+- **iPhone as hotspot**: shares internet only, NOT GPS. Enter coords manually or import the Immich original (EXIF GPS preserved).
+- **Immich**: export original (not preview), paste path, source `immich-exif`.
+
+## Status - does today / next week / non-goals
+
+**Does today:** 4-crate Rust workspace (baedeker/core/mcp/app); Baedeker
+guide model (places, routes, itineraries); map app with fly-to, scale bar,
+regional intel; fleet i18n (7 locales); 11 test fns; CLI verbs via
+`travelcraft --help`.
+
+**Next week:** `docs/PRD.md` (model + verbs + qgiscraft boundary) plus
+`docs/TOOLS.md`; `just ci` (fmt + clippy-deny + test); first democraft
+recipe on fixtures.
+
+**Non-goals:** not a GIS analyzer (that's qgiscraft); no live-tile SLA -
+keyless OSM/Photon only.
+
+## Lineage - the Storytold craft-app pattern
+
+Storytold ArtCraft ([storytold/artcraft](https://github.com/storytold/artcraft) - "the IDE for artists") was the starting point. The 16 craft apps in the Storytold stable each ship one binary that is both the human CLI and the agent MCP server (stdio), headless-first, with `run.json` + report artifacts. That modus operandi and harness is what this repo implements; the code here is independent, the pattern is shared.
